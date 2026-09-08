@@ -1,4 +1,4 @@
-# PresenceFM 0.3.0 QA Record
+# Aura 0.3.0 QA Record
 
 Date: 2026-07-12
 
@@ -24,7 +24,7 @@ This record contains no credentials, user paths, or listening metadata. It suppl
 
 ## Playback and artwork regression pass
 
-- Repeated live Apple Music track changes updated PresenceFM metadata within the first observation window (under two seconds including UI capture overhead).
+- Repeated live Apple Music track changes updated Aura metadata within the first observation window (under two seconds including UI capture overhead).
 - A previous track's cover is removed immediately at transition; the new cover appeared within approximately three seconds when Apple Music required the Apple-hosted catalog fallback.
 - Discord changed to the new title, artist, album, and timer and exposed the large image as `Apple Music album artwork` on the profile activity card.
 - Pause and Private Mode each cleared the Discord activity; resuming playback/private mode restored it.

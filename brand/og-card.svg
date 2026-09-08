@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="aura" x1="120" y1="180" x2="420" y2="470" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFC49B"/>
+      <stop offset=".34" stop-color="#FF9AA8"/>
+      <stop offset=".7" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#5B5BF5"/>
+    </linearGradient>
+    <radialGradient id="ambient" cx="270" cy="315" r="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A78BFA" stop-opacity=".30"/>
+      <stop offset="1" stop-color="#A78BFA" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="26"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="630" fill="#0F0F17"/>
+  <circle cx="270" cy="315" r="420" fill="url(#ambient)"/>
+  <circle cx="270" cy="315" r="132" fill="none" stroke="url(#aura)" stroke-width="48" opacity=".45" filter="url(#glow)"/>
+  <circle cx="270" cy="315" r="132" fill="none" stroke="url(#aura)" stroke-width="32"/>
+  <circle cx="270" cy="315" r="32" fill="url(#aura)"/>
+  <text x="500" y="286" fill="#F7F6FB" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Display',Helvetica,sans-serif" font-size="104" font-weight="700" letter-spacing="-3">Aura</text>
+  <text x="504" y="352" fill="#A78BFA" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text',Helvetica,sans-serif" font-size="34" font-weight="600" letter-spacing="-.4">Now playing, everywhere.</text>
+  <text x="504" y="410" fill="#A9A7BC" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text',Helvetica,sans-serif" font-size="23" font-weight="500">Discord Rich Presence and Last.fm scrobbling,</text>
+  <text x="504" y="444" fill="#A9A7BC" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text',Helvetica,sans-serif" font-size="23" font-weight="500">from one private-by-default Mac app.</text>
+  <text x="504" y="512" fill="#55546B" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text',Helvetica,sans-serif" font-size="19" font-weight="600" letter-spacing="2.2">MACOS · OPEN SOURCE</text>
+</svg>

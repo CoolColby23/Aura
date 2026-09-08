@@ -1,4 +1,4 @@
-# PresenceFM Build Week demo script
+# Aura Build Week demo script
 
 Target length: **2:35–2:50**. The public YouTube upload must stay under three
 minutes and include spoken coverage of the project, Codex, and GPT-5.6.
@@ -8,7 +8,7 @@ minutes and include spoken coverage of the project, Codex, and GPT-5.6.
 Show the desktop and menu-bar icon.
 
 > Music presence is fragmented across players, Discord, Last.fm, and separate
-> stats tools. PresenceFM brings those pieces into one private-by-default native
+> stats tools. Aura brings those pieces into one private-by-default native
 > Mac app with no account or backend.
 
 ## 0:20–0:55 — live product tour
@@ -16,7 +16,7 @@ Show the desktop and menu-bar icon.
 Show **Now Playing**, artwork/progress, and the service rows. Briefly open the
 menu-bar panel.
 
-> PresenceFM detects Apple Music, Spotify, YouTube Music through YTMDesktop, and
+> Aura detects Apple Music, Spotify, YouTube Music through YTMDesktop, and
 > best-effort TIDAL playback. It can publish configurable Discord Rich Presence,
 > apply Last.fm's listening threshold, and retain failed scrobbles safely for
 > retry. Apple Music Radio works across Now Playing, Discord, local insights,
@@ -24,7 +24,7 @@ menu-bar panel.
 
 ## 0:55–1:25 — credential-free judge path
 
-Launch with `swift run PresenceFM --demo`, or select **Start Demo Playback** on
+Launch with `swift run Aura --demo`, or select **Start Demo Playback** on
 the empty Now Playing dashboard.
 
 > For judging, I added deterministic demo playback that enters the real
@@ -57,7 +57,7 @@ passing test summary.
 
 Return to the main dashboard and show the app plus menu-bar panel.
 
-> PresenceFM makes listening presence coherent, recoverable, and private across
+> Aura makes listening presence coherent, recoverable, and private across
 > the services people already use. The repository includes one-command tests,
 > release packaging, and a no-credentials judge path.
 

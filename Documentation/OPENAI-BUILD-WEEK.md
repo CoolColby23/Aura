@@ -1,10 +1,10 @@
-# OpenAI Build Week — PresenceFM
+# OpenAI Build Week — Aura
 
 ## Submission snapshot
 
 - **Category:** Apps for Your Life
-- **Project:** PresenceFM
-- **Repository:** https://github.com/CoolColby23/PresenceFM
+- **Project:** Aura
+- **Repository:** https://github.com/CoolColby23/Aura
 - **Supported platform:** macOS 15 or later
 - **License:** MIT
 
@@ -12,13 +12,13 @@
 
 Music listeners often use one player, Discord for social presence, Last.fm for
 long-term history, and another tool for personal insights. Each integration has
-different failure modes and privacy implications. PresenceFM turns that
+different failure modes and privacy implications. Aura turns that
 fragmented workflow into one native, private-by-default Mac app with no account,
 backend, analytics, or uploaded listening-history database.
 
-## What PresenceFM does
+## What Aura does
 
-PresenceFM detects playback from Apple Music, Spotify, YouTube Music through
+Aura detects playback from Apple Music, Spotify, YouTube Music through
 YTMDesktop, and best-effort TIDAL metadata. It can publish a configurable Discord
 Rich Presence, update and scrobble to Last.fm, and maintain searchable local
 history and listening insights. Private Mode pauses external publishing. A
@@ -35,7 +35,7 @@ and are not misreported as skips.
 ## Judge path — no accounts required
 
 1. On macOS 15 or later, clone the repository.
-2. Run `swift test` and then `swift run PresenceFM --demo`.
+2. Run `swift test` and then `swift run Aura --demo`.
 3. The demo launch skips onboarding for that run without changing its saved
    completion state or enabling an integration.
 4. On **Now Playing**, watch a simulated track move through the same
@@ -45,7 +45,7 @@ and are not misreported as skips.
 6. Select **End Demo** before testing a real music player.
 
 Demo Mode is intentionally ephemeral and defaults off on every launch. While it
-is active, PresenceFM clears Discord presence and blocks both Discord and Last.fm
+is active, Aura clears Discord presence and blocks both Discord and Last.fm
 publishing. Demo listens can exercise the local history pipeline but cannot be
 queued as Last.fm scrobbles.
 
@@ -53,11 +53,11 @@ For the release-style path, run:
 
 ```sh
 ./scripts/verify-build-week.sh
-open PresenceFM.app --args --demo
+open Aura.app --args --demo
 ```
 
 The packaging script uses an available Apple Development identity and otherwise
-falls back to ad-hoc signing. PresenceFM is not notarized, so on another Mac the
+falls back to ad-hoc signing. Aura is not notarized, so on another Mac the
 first launch may require Control-clicking the app and choosing **Open**.
 
 ## How Codex and GPT-5.6 were used
@@ -79,7 +79,7 @@ readiness pass:
 
 The shipped app does not call an AI model at runtime. GPT-5.6 and Codex were used
 to accelerate product engineering, reasoning about integration boundaries,
-test design, and release preparation. This preserves PresenceFM's local-first
+test design, and release preparation. This preserves Aura's local-first
 privacy model and avoids adding an AI dependency where the user problem does not
 need one.
 
@@ -101,7 +101,7 @@ mode starts.
 
 ### Preserve privacy and reliability
 
-PresenceFM does not need a hosted service. Credentials remain in an owner-only
+Aura does not need a hosted service. Credentials remain in an owner-only
 local file, history stays in SwiftData on the Mac, exports are explicit, caches
 and queues are bounded, and diagnostics redact common secrets and user paths.
 

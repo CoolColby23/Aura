@@ -1,6 +1,6 @@
-# PresenceFM Architecture
+# Aura Architecture
 
-PresenceFM is a local-first macOS menu-bar app. External publishing is optional; listening history, diagnostics, preferences, and the retry queue remain on the Mac.
+Aura is a local-first macOS menu-bar app. External publishing is optional; listening history, diagnostics, preferences, and the retry queue remain on the Mac.
 
 ```mermaid
 flowchart LR

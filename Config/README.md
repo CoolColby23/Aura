@@ -1,11 +1,11 @@
 # Local iOS configuration
 
-PresenceFM's iOS companion is installed from Xcode and uses credentials owned by the person building it. No shared credentials or signing identity are committed.
+Aura's iOS companion is installed from Xcode and uses credentials owned by the person building it. No shared credentials or signing identity are committed.
 
 1. Copy `Local.xcconfig.example` to `Local.xcconfig` and enter your Apple personal-team ID and a unique bundle identifier.
-2. Open `PresenceFM.xcworkspace`, select the **PresenceFMiOS** scheme, and choose a physical iPhone.
+2. Open `Aura.xcworkspace`, select the **AuraiOS** scheme, and choose a physical iPhone.
 3. Confirm Signing & Capabilities resolves with automatic signing, then run the app.
-4. During onboarding, create or enter your Last.fm API application credentials and connect your account. Use `https://presence-fm.vercel.app/lastfm-callback.html` as its callback URL; it immediately hands the short-lived token back to the app through `presencefm://lastfm-auth`.
+4. During onboarding, create or enter your Last.fm API application credentials and connect your account. Use `https://presence-fm.vercel.app/lastfm-callback.html` as its callback URL; it immediately hands the short-lived token back to the app through `aura://lastfm-auth`.
 
 A free Apple ID can install the default local-only build on a personally owned iPhone. It intentionally omits CloudKit and push-notification entitlements. The provisioning profile normally expires after seven days, at which point the app must be installed again from Xcode.
 

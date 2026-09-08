@@ -1,6 +1,6 @@
 # Contributing
 
-PresenceFM requires Swift 6.2, Xcode 26 or later, and targets macOS 15 or later.
+Aura requires Swift 6.2, Xcode 26 or later, and targets macOS 15 or later.
 
 1. Create a focused branch.
 2. Run `swift test` before submitting a pull request.
@@ -28,6 +28,17 @@ Tags matching `v*` build a draft GitHub release. The Discord application ID has 
 `VERSION` must match the tag base (for example tag `v1.1.0-beta.1` requires `VERSION` `1.1.0`).
 
 The workflow creates an ad-hoc signed draft and requires no Apple Developer secrets. This is the expected free-account release path; verify the documented Control-click first-launch flow before publishing it.
+
+### Sparkle update signing
+
+In-app updates are authenticated by an EdDSA signature, not by Apple code signing, so two values must stay in agreement:
+
+- `SUPublicEDKey` in `scripts/package-app.sh` (asserted by `scripts/verify-package.sh`)
+- the `SPARKLE_PRIVATE_KEY` repository secret, which is the base64 32-byte private seed for that same key pair
+
+If they disagree, `generate_appcast` prints a warning, writes an **unsigned** enclosure, and still exits 0 — producing a feed Sparkle will refuse. The release workflow's *Verify the update feed is signed* step fails the build in that case, so a silently unsigned update can never be published. If that step fails, regenerate the pair with `generate_keys` and update both values.
+
+Because production releases are published from a draft, `releases/latest/download/appcast.xml` only resolves once the draft is published as Latest.
 
 ### Cut a pre-release
 

@@ -1,5 +1,5 @@
+import AuraCore
 import MusicKit
-import PresenceFMCore
 import SwiftUI
 
 struct CompanionRootView: View {
@@ -9,12 +9,13 @@ struct CompanionRootView: View {
             if model.needsOnboarding {
                 LastFMOnboardingView(model: model)
             } else {
-                NavigationStack { LastFMHomeView(model: model) }
+                LastFMAppShell(model: model)
             }
         }
-        .tint(CompanionBrand.electricBlue)
+        .tint(CompanionBrand.scrobbleRed)
+        .preferredColorScheme(.dark)
         .background(CompanionBrand.canvas.ignoresSafeArea())
-        .alert("PresenceFM", isPresented: Binding(get: { model.statusMessage != nil }, set: { if !$0 { model.statusMessage = nil } })) {
+        .alert("Aura", isPresented: Binding(get: { model.statusMessage != nil }, set: { if !$0 { model.statusMessage = nil } })) {
             Button("OK") { model.statusMessage = nil }
         } message: {
             Text(model.statusMessage ?? "")
@@ -56,7 +57,7 @@ struct LastFMOnboardingView: View {
             CompanionBrandMark()
                 .frame(width: 96, height: 96)
                 .padding(CompanionSpacing.md)
-                .background(CompanionBrand.electricBlue.opacity(0.10), in: Circle())
+                .background(CompanionBrand.indigo.opacity(0.10), in: Circle())
             VStack(spacing: CompanionSpacing.xs) {
                 Text("Connect Last.fm")
                     .font(.largeTitle.bold())
@@ -180,7 +181,7 @@ struct LastFMHomeView: View {
                 Section {
                     Button("Enable Apple Music scrobbling", systemImage: "music.note") { Task { await model.requestMusicAccess() } }
                 } footer: {
-                    Text("Music access lets PresenceFM submit newly played songs to Last.fm.")
+                    Text("Music access lets Aura submit newly played songs to Last.fm.")
                 }
             }
             Section {
@@ -197,7 +198,7 @@ struct LastFMHomeView: View {
                         LabeledContent {
                             Text("\(model.historicalImportItems.count)")
                                 .font(.subheadline.weight(.semibold).monospacedDigit())
-                                .foregroundStyle(CompanionBrand.electricBlue)
+                                .foregroundStyle(CompanionBrand.indigo)
                         } label: {
                             Label("Choose past plays to scrobble", systemImage: "checklist")
                         }
@@ -315,10 +316,12 @@ struct CompanionReadinessView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            Text("iOS may suspend background observation. PresenceFM checks recent plays when the system gives it runtime; keeping the app open provides the strongest evidence.")
-                .font(.caption)
-                .foregroundStyle(CompanionBrand.secondaryText)
-                .multilineTextAlignment(.center)
+            Text(
+                "iOS may suspend background observation. Aura checks recent plays when the system gives it runtime; keeping the app open provides the strongest evidence."
+            )
+            .font(.caption)
+            .foregroundStyle(CompanionBrand.secondaryText)
+            .multilineTextAlignment(.center)
         }
         .companionCard(padding: CompanionSpacing.lg)
     }
@@ -349,7 +352,7 @@ struct HistoricalScrobbleSelectionView: View {
                     } label: {
                         HStack(spacing: CompanionSpacing.md) {
                             Image(systemName: selectedIDs.contains(listen.id) ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(selectedIDs.contains(listen.id) ? CompanionBrand.electricBlue : Color.secondary)
+                                .foregroundStyle(selectedIDs.contains(listen.id) ? CompanionBrand.indigo : Color.secondary)
                                 .font(.title3)
                                 .accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 3) {
@@ -392,12 +395,12 @@ struct HistoricalScrobbleSelectionView: View {
                     if !visibleSelectedIDs.isEmpty {
                         Text("\(visibleSelectedIDs.count) selected")
                             .font(.caption.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(CompanionBrand.electricBlue)
+                            .foregroundStyle(CompanionBrand.indigo)
                             .textCase(nil)
                     }
                 }
             } footer: {
-                Text("Only selected songs are sent to Last.fm. Submitting a historical scrobble cannot be undone from PresenceFM.")
+                Text("Only selected songs are sent to Last.fm. Submitting a historical scrobble cannot be undone from Aura.")
             }
         }
         .listStyle(.insetGrouped)
@@ -464,7 +467,8 @@ struct HistoricalScrobbleSelectionView: View {
         return model.historicalImportItems.filter { listen in
             let matchesDate = cutoff.map { (listen.canonicalMetadata.startedAt ?? .distantPast) >= $0 } ?? true
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).presenceNormalized
-            let matchesSearch = query.isEmpty
+            let matchesSearch =
+                query.isEmpty
                 || listen.canonicalMetadata.title.presenceNormalized.contains(query)
                 || listen.canonicalMetadata.artist.presenceNormalized.contains(query)
             return matchesDate && matchesSearch
@@ -528,20 +532,27 @@ struct CompanionCaptureStatusCard: View {
                 }
             }
             if let evidence = model.nowPlaying {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(evidence.originalMetadata.title)
-                        .font(.title3.weight(.semibold))
-                        .lineLimit(1)
-                    Text(evidence.originalMetadata.artist)
-                        .font(.subheadline)
-                        .foregroundStyle(CompanionBrand.secondaryText)
-                        .lineLimit(1)
+                HStack(spacing: CompanionSpacing.sm) {
+                    // The halo sweeps while a track is actually being observed, which
+                    // is the companion's only live-playback surface.
+                    SweepingCompanionBrandMark(isPlaying: true)
+                        .frame(width: 26, height: 26)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(evidence.originalMetadata.title)
+                            .font(.title3.weight(.semibold))
+                            .lineLimit(1)
+                        Text(evidence.originalMetadata.artist)
+                            .font(.subheadline)
+                            .foregroundStyle(CompanionBrand.secondaryText)
+                            .lineLimit(1)
+                    }
                 }
                 .padding(.top, 2)
             }
             if let progress = presentation.progress {
                 ProgressView(value: progress)
-                    .tint(CompanionBrand.signalCyan)
+                    .tint(CompanionBrand.lilac)
                     .accessibilityLabel("Scrobble eligibility")
                     .accessibilityValue(progress.formatted(.percent.precision(.fractionLength(0))))
             }
@@ -588,7 +599,7 @@ struct CompanionCaptureActivityView: View {
                 ContentUnavailableView(
                     "No captured plays yet",
                     systemImage: "waveform.badge.magnifyingglass",
-                    description: Text("PresenceFM will explain captured, queued, private, and uncertain plays here.")
+                    description: Text("Aura will explain captured, queued, private, and uncertain plays here.")
                 )
             }
             ForEach(activity) { entry in
@@ -638,13 +649,13 @@ struct CompanionCaptureActivityView: View {
     }
 }
 
-// Titles, symbols, and tone come from `PresenceFMCore` so the iPhone and Mac
+// Titles, symbols, and tone come from `AuraCore` so the iPhone and Mac
 // apps describe the same situation identically. Only the palette is local.
 private extension CaptureStatusPresentation.Status {
     var tint: Color {
         switch tone {
         case .positive: .green
-        case .active: CompanionBrand.electricBlue
+        case .active: CompanionBrand.indigo
         case .paused: .orange
         case .neutral: .secondary
         case .critical: .red
@@ -705,7 +716,7 @@ struct LastFMTrackRow: View {
                 if let image = phase.image {
                     image.resizable().scaledToFill()
                 } else {
-                    CompanionBrand.discGradient.opacity(0.16)
+                    CompanionBrand.sweep().opacity(0.16)
                         .overlay { CompanionBrandMark().padding(10) }
                 }
             }
@@ -733,7 +744,7 @@ struct LastFMTrackRow: View {
             }
             Spacer(minLength: CompanionSpacing.xs)
             if track.isNowPlaying {
-                CompanionStatusPill(title: "Now", symbol: "waveform", tint: CompanionBrand.electricBlue)
+                CompanionStatusPill(title: "Now", symbol: "waveform", tint: CompanionBrand.indigo)
             } else if let date = track.playedAt {
                 Text(date, style: .relative)
                     .font(.caption2.monospacedDigit())
@@ -781,7 +792,7 @@ struct HistoryView: View {
                     .swipeActions {
                         if listen.state == .failed || listen.state == .queued {
                             Button("Retry", systemImage: "arrow.clockwise") { Task { await model.approve(listen) } }
-                                .tint(CompanionBrand.electricBlue)
+                                .tint(CompanionBrand.indigo)
                         }
                     }
             }
@@ -813,7 +824,7 @@ struct ReviewView: View {
                     .swipeActions {
                         Button("Dismiss", systemImage: "xmark", role: .destructive) { Task { await model.dismiss(listen) } }
                         Button("Edit", systemImage: "pencil") { model.presentedEditor = listen }
-                            .tint(CompanionBrand.electricBlue)
+                            .tint(CompanionBrand.indigo)
                     }
             }
         }
@@ -895,7 +906,7 @@ struct ListenRow: View {
         case .submitted: .green
         case .review: .orange
         case .failed: .red
-        default: CompanionBrand.electricBlue
+        default: CompanionBrand.indigo
         }
     }
 }
@@ -928,7 +939,7 @@ struct CompanionSettingsView: View {
             } header: {
                 CompanionSectionHeader(title: "Last.fm")
             } footer: {
-                Text("Credentials are stored in this device's Keychain and are never synced by PresenceFM.")
+                Text("Credentials are stored in this device's Keychain and are never synced by Aura.")
             }
             Section {
                 Toggle(

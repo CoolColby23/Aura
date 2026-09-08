@@ -1,12 +1,17 @@
+import AuraCore
 import BackgroundTasks
 import Foundation
 import MusicKit
+import OSLog
 import Observation
-import PresenceFMCore
 import UIKit
 
 @MainActor @Observable
 final class CompanionAppModel {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "fm.aura.Aura",
+        category: "history-import"
+    )
     private(set) var snapshot = CompanionSnapshot.empty
     private(set) var nowPlaying: PlaybackEvidence?
     private(set) var lastFMUsername: String?
@@ -50,7 +55,7 @@ final class CompanionAppModel {
             return CaptureStatusPresentation(
                 status: .needsAttention,
                 headline: "Connect Last.fm",
-                explanation: "Connect an account before PresenceFM can submit scrobbles.",
+                explanation: "Connect an account before Aura can submit scrobbles.",
                 recoveryAction: .reconnectLastFM
             )
         }
@@ -62,8 +67,8 @@ final class CompanionAppModel {
                 status: .needsAttention,
                 headline: "Apple Music access needed",
                 explanation: denied
-                    ? "Music access is turned off for PresenceFM. Turn it back on in Settings so plays can be identified."
-                    : "Allow Music access so PresenceFM can identify and qualify plays.",
+                    ? "Music access is turned off for Aura. Turn it back on in Settings so plays can be identified."
+                    : "Allow Music access so Aura can identify and qualify plays.",
                 recoveryAction: denied ? .openSettings : .grantPlaybackPermission
             )
         }
@@ -71,7 +76,7 @@ final class CompanionAppModel {
             return CaptureStatusPresentation(
                 status: .privateMode,
                 headline: "Private Mode is on",
-                explanation: "PresenceFM can detect playback, but nothing is sent to Last.fm.",
+                explanation: "Aura can detect playback, but nothing is sent to Last.fm.",
                 recoveryAction: .disablePrivateMode
             )
         }
@@ -88,7 +93,7 @@ final class CompanionAppModel {
                 return CaptureStatusPresentation(
                     status: .submitted,
                     headline: "Last scrobble submitted",
-                    explanation: "Open PresenceFM while listening for the strongest capture. iOS may pause background observation.",
+                    explanation: "Open Aura while listening for the strongest capture. iOS may pause background observation.",
                     timestamp: submitted.submittedAt ?? submitted.canonicalMetadata.startedAt
                 )
             }
@@ -142,7 +147,7 @@ final class CompanionAppModel {
                 return CaptureStatusPresentation(
                     status: .excluded,
                     headline: "Last.fm would not accept this play",
-                    explanation: "\(reason) Editing the track details lets PresenceFM try again.",
+                    explanation: "\(reason) Editing the track details lets Aura try again.",
                     timestamp: evidence.capturedAt
                 )
             }
@@ -172,11 +177,16 @@ final class CompanionAppModel {
                     timestamp: evidence.capturedAt
                 )
             case .eligible:
-                return CaptureStatusPresentation(status: .queued, headline: "Ready to scrobble", explanation: "The listening threshold has been reached.", progress: 1, timestamp: evidence.capturedAt)
+                return CaptureStatusPresentation(
+                    status: .queued, headline: "Ready to scrobble", explanation: "The listening threshold has been reached.", progress: 1,
+                    timestamp: evidence.capturedAt)
             case .ineligible(let reason):
-                return CaptureStatusPresentation(status: .excluded, headline: "This play will not scrobble", explanation: reason, timestamp: evidence.capturedAt)
+                return CaptureStatusPresentation(
+                    status: .excluded, headline: "This play will not scrobble", explanation: reason, timestamp: evidence.capturedAt)
             case .review(let reason):
-                return CaptureStatusPresentation(status: .needsAttention, headline: "This play needs review", explanation: reviewExplanation(reason), timestamp: evidence.capturedAt, recoveryAction: .recheckNow)
+                return CaptureStatusPresentation(
+                    status: .needsAttention, headline: "This play needs review", explanation: reviewExplanation(reason), timestamp: evidence.capturedAt,
+                    recoveryAction: .recheckNow)
             }
         }
     }
@@ -205,6 +215,10 @@ final class CompanionAppModel {
     }
 
     func start() async {
+        if ProcessInfo.processInfo.arguments.contains("-AuraVisualDemo") {
+            seedVisualDemo()
+            return
+        }
         let deviceID: UUID
         do {
             deviceID = try await keychain.stableDeviceID()
@@ -397,16 +411,20 @@ final class CompanionAppModel {
         do {
             let existingIDs = Set(snapshot.listens.map(\.id))
             let result = try await source.reconcile(since: .init(lastCheckedAt: .distantPast))
-            for evidence in result.evidence { _ = try await store.ingest(evidence) }
+            try await store.ingest(result.evidence)
             try await store.setCursor(result.cursor)
             await reload()
             await refreshLastFMHistory()
             let remoteDuplicates = historicalImportItems.filter(isLikelyOnLastFM)
-            for duplicate in remoteDuplicates { try await store.setState(.dismissed, for: duplicate.id) }
+            try await store.setState(.dismissed, for: Set(remoteDuplicates.map(\.id)))
             await reload()
             lastAppleMusicImportCount = Set(historicalImportItems.map(\.id)).subtracting(existingIDs).count
             try await store.log("history-import", "Found \(result.evidence.count) MusicKit history candidates.")
         } catch {
+            let failure = error as NSError
+            Self.logger.error(
+                "Apple Music history import failed: domain=\(failure.domain, privacy: .public) code=\(failure.code) description=\(failure.localizedDescription, privacy: .public)"
+            )
             captureIssue = friendlyDescription(for: error)
             show(error)
         }
@@ -439,7 +457,7 @@ final class CompanionAppModel {
     }
 
     func scheduleBackgroundRefresh() {
-        let request = BGAppRefreshTaskRequest(identifier: "fm.presence.companion.refresh")
+        let request = BGAppRefreshTaskRequest(identifier: "fm.aura.companion.refresh")
         request.earliestBeginDate = Date().addingTimeInterval(15 * 60)
         try? BGTaskScheduler.shared.submit(request)
     }
@@ -449,7 +467,7 @@ final class CompanionAppModel {
         if snapshot.baseline == nil { try await store.establishBaselineIfNeeded(try await source.establishBaseline()) }
         await reload(); let cursor = snapshot.cursor ?? .init(lastCheckedAt: snapshot.baseline?.establishedAt ?? .now)
         let result = try await source.reconcile(since: cursor)
-        for evidence in result.evidence { _ = try await store.ingest(evidence) }
+        try await store.ingest(result.evidence)
         try await store.setCursor(result.cursor); try await store.log("reconcile", "Processed \(result.evidence.count) recently played candidates.")
         await reload()
         scheduleBackgroundRefresh()
@@ -472,7 +490,7 @@ final class CompanionAppModel {
             } catch let rejection as CompanionLastFMError where rejection.isTerminal {
                 // Retrying cannot change the outcome, so the play stops here with
                 // the reason attached instead of cycling through the queue forever.
-                try? await cloud.complete(lease, result: .deferred(rejection.localizedDescription))
+                try? await cloud.complete(lease, result: .rejected(rejection.localizedDescription))
                 try await store.setState(.failed, for: listen.id, failureReason: rejection.localizedDescription)
                 throw rejection
             } catch {
@@ -498,6 +516,74 @@ final class CompanionAppModel {
         return .init(apiKey: configuration.apiKey, sharedSecret: configuration.sharedSecret)
     }
     private func reload() async { snapshot = await store.current() }
+
+    private func seedVisualDemo() {
+        let samples: [(String, String, String, TimeInterval)] = [
+            ("Runaway", "Daniel Seavey", "Dancing In The Dark", 0),
+            ("Confident (feat. Chance the Rapper)", "Justin Bieber", "Journals", -29 * 60),
+            ("When Did You Get Hot?", "Sabrina Carpenter", "Man's Best Friend", -32 * 60),
+            ("Bite Me", "Naomi Jon", "Villain of Your Dreams", -35 * 60),
+            ("Eastside", "benny blanco, Halsey & Khalid", "Eastside", -38 * 60),
+            ("Run the World (Girls)", "Beyoncé", "4", -42 * 60),
+            ("MESSY", "Rhea Raj", "HUNTER", -44 * 60),
+            ("Unholy", "Sam Smith & Kim Petras", "Gloria", -47 * 60),
+            ("ALIEN SUPERSTAR", "Beyoncé", "RENAISSANCE", -2 * 60 * 60),
+        ]
+        lastFMUsername = "CoolColby23"
+        readinessAcknowledged = true
+        musicAuthorization = .authorized
+        cloudStatus = "Local only"
+        lastFMTracks = samples.enumerated().map { index, item in
+            CompanionLastFMTrack(
+                title: item.0,
+                artist: item.1,
+                album: item.2,
+                artworkURL: nil,
+                playedAt: index == 0 ? nil : Date().addingTimeInterval(item.3),
+                isNowPlaying: index == 0
+            )
+        }
+        // Populate completed periods only in the isolated visual demo so report navigation and charts can be inspected.
+        for offset in [-1, 0] {
+            let interval = ListeningRange.week.interval(offset: offset)
+            for day in 0..<7 {
+                for play in 0..<(day % 3 + 1) {
+                    let item = samples[(day + play) % samples.count]
+                    let date = Calendar.current.date(byAdding: .day, value: day, to: interval.start)!
+                        .addingTimeInterval(Double(12 * 3600 + play * 240))
+                    lastFMTracks.append(
+                        .init(
+                            title: item.0, artist: item.1, album: item.2,
+                            artworkURL: nil, playedAt: date, isNowPlaying: false))
+                }
+            }
+        }
+        lastFMTracks.sort { ($0.playedAt ?? .distantFuture) > ($1.playedAt ?? .distantFuture) }
+        let candidates = samples.dropFirst(1).prefix(6).enumerated().map { index, item -> CanonicalListen in
+            let metadata = ScrobbleMetadata(
+                title: item.0,
+                artist: item.1,
+                album: item.2,
+                duration: 210,
+                startedAt: Date().addingTimeInterval(item.3 - Double(index) * 60)
+            )
+            return CanonicalListen(
+                id: "visual-demo-\(index)",
+                evidence: [],
+                metadata: metadata,
+                state: .review,
+                reviewReason: .historicalImport
+            )
+        }
+        snapshot = CompanionSnapshot(
+            baseline: CaptureBaseline(),
+            cursor: nil,
+            listens: candidates,
+            privateMode: false,
+            privateModeEffectiveAt: nil,
+            diagnostics: []
+        )
+    }
     private func show(_ error: Error) {
         statusMessage = friendlyDescription(for: error)
     }
@@ -509,7 +595,7 @@ final class CompanionAppModel {
         }
         let description = (error as NSError).localizedDescription
         if description == "Unknown error" || description == "The operation couldn’t be completed. (Swift.Error error 1.)" {
-            return "Apple Music history is temporarily unavailable. PresenceFM will retry automatically."
+            return "Apple Music history is temporarily unavailable. Aura will retry automatically."
         }
         return description
     }
@@ -518,13 +604,13 @@ final class CompanionAppModel {
         switch reason {
         case .missingTimestamp: "A reliable play time was unavailable."
         case .missingDuration: "The track duration was unavailable."
-        case .insufficientPlayTime: "PresenceFM could not verify enough listening time."
+        case .insufficientPlayTime: "Aura could not verify enough listening time."
         case .ambiguousDuplicate: "This play may duplicate another captured play."
         case .conflictingMetadata: "Music reported conflicting track details."
         case .beforeBaseline: "The play began before capture was established."
         case .historicalImport: "Apple Music reports this as recently played. Select it to scrobble it."
-        case .unrecognized: "This play was flagged by a newer version of PresenceFM."
-        case .none: "PresenceFM needs confirmation before submitting this play."
+        case .unrecognized: "This play was flagged by a newer version of Aura."
+        case .none: "Aura needs confirmation before submitting this play."
         }
     }
 

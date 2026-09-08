@@ -2,33 +2,33 @@
 import PackageDescription
 
 let package = Package(
-    name: "PresenceFM",
+    name: "Aura",
     platforms: [.macOS(.v15), .iOS(.v18)],
     products: [
-        .library(name: "PresenceFMCore", targets: ["PresenceFMCore"]),
-        .executable(name: "PresenceFM", targets: ["PresenceFM"]),
+        .library(name: "AuraCore", targets: ["AuraCore"]),
+        .executable(name: "Aura", targets: ["Aura"]),
     ],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.2")
     ],
     targets: [
-        .target(name: "PresenceFMCore", path: "Sources/PresenceFMCore"),
+        .target(name: "AuraCore", path: "Sources/AuraCore"),
         .executableTarget(
-            name: "PresenceFM",
-            dependencies: ["PresenceFMCore", .product(name: "Sparkle", package: "Sparkle")],
-            path: "Sources/PresenceFM",
+            name: "Aura",
+            dependencies: ["AuraCore", .product(name: "Sparkle", package: "Sparkle")],
+            path: "Sources/Aura",
             resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
-            name: "PresenceFMCoreTests",
-            dependencies: ["PresenceFMCore"],
-            path: "Tests/PresenceFMCoreTests"
+            name: "AuraCoreTests",
+            dependencies: ["AuraCore"],
+            path: "Tests/AuraCoreTests"
         ),
         .testTarget(
-            name: "PresenceFMTests",
-            dependencies: ["PresenceFM", "PresenceFMCore"],
-            path: "Tests/PresenceFMTests",
+            name: "AuraTests",
+            dependencies: ["Aura", "AuraCore"],
+            path: "Tests/AuraTests",
             linkerSettings: [
                 // SwiftPM does not add its binary-framework output directory to
                 // test bundles that depend on an executable target.

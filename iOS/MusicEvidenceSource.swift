@@ -1,12 +1,14 @@
+import AuraCore
 import Foundation
 import MediaPlayer
 import MusicKit
-import PresenceFMCore
 
 actor AppleMusicEvidenceSource: PlaybackEvidenceSource {
     /// Bounds a history scan so a long or unexpectedly repeating page sequence
     /// cannot keep the import spinning against the network.
     private static let maximumHistoryPages = 20
+    /// Apple's recently played tracks endpoint rejects limits above 30.
+    private static let historyPageLimit = 30
 
     private let player = MPMusicPlayerController.systemMusicPlayer
     private let deviceID: UUID
@@ -43,29 +45,101 @@ actor AppleMusicEvidenceSource: PlaybackEvidenceSource {
     }
 
     func reconcile(since cursor: ReconciliationCursor) async throws -> ReconciliationResult {
-        var request = MusicRecentlyPlayedRequest<Song>(); request.limit = 50
+        let evidence: [PlaybackEvidence]
+        do {
+            evidence = try await musicKitHistory(since: cursor.lastCheckedAt)
+        } catch {
+            // Automatic MusicKit tokens are unavailable for some locally
+            // signed builds. The media library still exposes the same last
+            // played dates that Last.fm-style history scanning needs.
+            evidence = mediaLibraryHistory(since: cursor.lastCheckedAt)
+            if evidence.isEmpty { throw error }
+        }
+        return ReconciliationResult(evidence: evidence, cursor: .init(lastCheckedAt: .now))
+    }
+
+    private func musicKitHistory(since date: Date) async throws -> [PlaybackEvidence] {
+        var request = MusicRecentlyPlayedRequest<Song>()
+        request.limit = Self.historyPageLimit
         let response = try await request.response()
         // Paginate from the most recent batch, never from the accumulated
-        // results: the paging token belongs to the batch MusicKit returned, and
-        // a locally concatenated collection carries no reliable cursor.
+        // results: the paging token belongs to the batch MusicKit returned.
         var batch = response.items
         var songs = Array(batch)
         var pagesFetched = 1
         while batch.hasNextBatch, pagesFetched < Self.maximumHistoryPages {
-            guard let next = try await batch.nextBatch(limit: 50), !next.isEmpty else { break }
+            guard let next = try await batch.nextBatch(limit: Self.historyPageLimit), !next.isEmpty else { break }
             songs += next
             batch = next
             pagesFetched += 1
         }
-        let evidence = songs.compactMap { song -> PlaybackEvidence? in
-            guard let played = song.lastPlayedDate, played > cursor.lastCheckedAt else { return nil }
+        return songs.compactMap { song in
+            guard let played = song.lastPlayedDate, played > date else { return nil }
             return PlaybackEvidence(
                 deviceID: deviceID, sourceTrackID: song.id.rawValue,
-                metadata: .init(title: song.title, artist: song.artistName, album: song.albumTitle, duration: song.duration, startedAt: played),
+                metadata: .init(
+                    title: song.title, artist: song.artistName, album: song.albumTitle,
+                    duration: song.duration, startedAt: played),
                 observedPlayTime: nil, origin: .reconciled, confidence: .probable, capturedAt: .now
             )
         }
-        return ReconciliationResult(evidence: evidence, cursor: .init(lastCheckedAt: .now))
+    }
+
+    private func mediaLibraryHistory(since date: Date) -> [PlaybackEvidence] {
+        let items = MPMediaQuery.songs().items ?? []
+        let evidence: [PlaybackEvidence] = items.flatMap {
+            mediaLibraryEvidence(from: $0, since: date)
+        }
+        return evidence.sorted(by: { lhs, rhs in
+            (lhs.originalMetadata.startedAt ?? .distantPast)
+                > (rhs.originalMetadata.startedAt ?? .distantPast)
+        })
+    }
+
+    private func mediaLibraryEvidence(from item: MPMediaItem, since date: Date) -> [PlaybackEvidence] {
+        guard let played = item.lastPlayedDate, played > date else { return [] }
+        guard let rawTitle = item.title, let rawArtist = item.artist else { return [] }
+        let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let artist = rawArtist.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty, !artist.isEmpty else { return [] }
+
+        let storeID = item.playbackStoreID
+        let sourceID: String
+        let platform: CompanionPlatform
+        if storeID.isEmpty {
+            sourceID = item.persistentID.description
+            platform = .localMusic
+        } else {
+            sourceID = storeID
+            platform = .appleMusic
+        }
+        let duration: TimeInterval? = item.playbackDuration > 0 ? item.playbackDuration : nil
+        // Last.fm's batch scanner represents the media item's play count as
+        // repeated scrobbles. Space inferred timestamps far enough apart that
+        // the merge engine keeps each play distinct while the newest play
+        // remains anchored to Apple's last-played date.
+        let dates = Self.inferredPlayDates(
+            lastPlayedAt: played, playCount: item.playCount,
+            duration: duration, since: date)
+        return dates.map { startedAt in
+            let metadata = ScrobbleMetadata(
+                title: title, artist: artist, album: item.albumTitle,
+                duration: duration, startedAt: startedAt)
+            return PlaybackEvidence(
+                deviceID: deviceID, platform: platform, sourceTrackID: sourceID, metadata: metadata,
+                observedPlayTime: nil, origin: .reconciled, confidence: .probable, capturedAt: .now
+            )
+        }
+    }
+
+    static func inferredPlayDates(
+        lastPlayedAt: Date, playCount: Int, duration: TimeInterval?, since date: Date
+    ) -> [Date] {
+        let spacing = max(120, duration ?? 180)
+        return (0..<max(1, playCount)).compactMap { index in
+            let startedAt = lastPlayedAt.addingTimeInterval(-Double(index) * spacing)
+            return startedAt > date ? startedAt : nil
+        }
     }
 
     func beginNotifications(_ action: @escaping @Sendable () -> Void) {

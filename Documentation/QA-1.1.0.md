@@ -1,8 +1,8 @@
-# PresenceFM 1.1.0 Release QA
+# Aura 1.1.0 Release QA
 
 Updated: 2026-08-20
 
-This is the living release record for PresenceFM 1.1.0. Automated evidence is
+This is the living release record for Aura 1.1.0. Automated evidence is
 recorded separately from checks that require a human, real service accounts,
 specific hardware, or Apple distribution credentials. An unchecked manual gate
 must not be represented as passed.
@@ -48,7 +48,7 @@ automation.
 
 ## Distribution decision
 
-PresenceFM is intentionally distributed with an ad-hoc signature until a
+Aura is intentionally distributed with an ad-hoc signature until a
 Developer ID Application certificate and Apple notarization credentials are
 available. The Gatekeeper first-launch flow is documented in the README and
 release notes. This is an explicitly accepted distribution limitation; it must

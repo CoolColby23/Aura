@@ -81,7 +81,7 @@ if not callback.is_file():
     errors.append("missing Last.fm callback bridge")
 else:
     callback_source = callback.read_text(encoding="utf-8")
-    for required_text in ("presencefm://lastfm-auth", "URLSearchParams", "encodeURIComponent"):
+    for required_text in ("aura://lastfm-auth", "URLSearchParams", "encodeURIComponent"):
         if required_text not in callback_source:
             errors.append(f"Last.fm callback bridge is missing {required_text}")
 

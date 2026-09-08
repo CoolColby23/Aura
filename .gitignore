@@ -15,6 +15,11 @@ Secrets.xcconfig
 *.pem
 Config/Generated*.swift
 Config/Generated*.xcconfig
+Aura.app/
+Aura-*.dmg
+Aura-*.zip
+Aura-*.sha256
+# Release artifacts from before the rebrand, still on contributors' disks.
 PresenceFM.app/
 PresenceFM-*.dmg
 PresenceFM-*.zip

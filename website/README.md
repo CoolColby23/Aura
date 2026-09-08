@@ -1,4 +1,4 @@
-# PresenceFM website
+# Aura website
 
 The marketing site is intentionally dependency-free. It uses the canonical assets in the repository's top-level `brand/` directory.
 

@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ROOT="${0:A:h:h}"
-VERSION="${1:-${PRESENCEFM_VERSION:-$(<"$ROOT/VERSION")}}"
-APP="$ROOT/PresenceFM.app"
-DMG="$ROOT/PresenceFM-${VERSION}.dmg"
+VERSION="${1:-${AURA_VERSION:-$(<"$ROOT/VERSION")}}"
+APP="$ROOT/Aura.app"
+DMG="$ROOT/Aura-${VERSION}.dmg"
 WORK="$(mktemp -d)"
 STAGING="$WORK/contents"
-RW_DMG="$WORK/PresenceFM-rw.dmg"
+RW_DMG="$WORK/Aura-rw.dmg"
 MOUNT_POINT=""
 mkdir -p "$STAGING"
 cleanup() {
@@ -18,21 +18,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
-[[ -d "$APP" ]] || { echo "PresenceFM.app is missing; run scripts/package-app.sh first." >&2; exit 1; }
+[[ -d "$APP" ]] || { echo "Aura.app is missing; run scripts/package-app.sh first." >&2; exit 1; }
 
-cp -R "$APP" "$STAGING/PresenceFM.app"
+cp -R "$APP" "$STAGING/Aura.app"
 ln -s /Applications "$STAGING/Applications"
 mkdir -p "$STAGING/.background"
-cp "$ROOT/Sources/PresenceFM/Resources/Brand/dmg-background.png" "$STAGING/.background/background.png"
+cp "$ROOT/Sources/Aura/Resources/Brand/dmg-background.png" "$STAGING/.background/background.png"
 
 rm -f "$DMG"
-hdiutil create -quiet -volname "PresenceFM" -srcfolder "$STAGING" -ov -format UDRW "$RW_DMG"
+hdiutil create -quiet -volname "Aura" -srcfolder "$STAGING" -ov -format UDRW "$RW_DMG"
 MOUNT_POINT="$(hdiutil attach -readwrite -noverify -noautoopen "$RW_DMG" | awk '/\/Volumes\// { sub(/^.*\/Volumes\//, "/Volumes/"); print; exit }')"
 [[ -n "$MOUNT_POINT" ]] || { echo "Could not mount installer image." >&2; exit 1; }
 
 osascript <<APPLESCRIPT
 tell application "Finder"
-  tell disk "PresenceFM"
+  tell disk "Aura"
     open
     set current view of container window to icon view
     set toolbar visible of container window to false
@@ -43,7 +43,7 @@ tell application "Finder"
     set icon size of theViewOptions to 96
     set text size of theViewOptions to 12
     set background picture of theViewOptions to file ".background:background.png"
-    set position of item "PresenceFM.app" of container window to {180, 235}
+    set position of item "Aura.app" of container window to {180, 235}
     set position of item "Applications" of container window to {480, 235}
     close
     open

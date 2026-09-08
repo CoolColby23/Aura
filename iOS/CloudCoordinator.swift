@@ -1,6 +1,6 @@
+import AuraCore
 import CloudKit
 import Foundation
-import PresenceFMCore
 
 enum CloudCoordinationError: LocalizedError {
     case unavailable, privateMode, accountMismatch, leaseHeld
@@ -15,7 +15,7 @@ enum CloudCoordinationError: LocalizedError {
 }
 
 actor CloudSubmissionCoordinator: SubmissionCoordinator {
-    static let zoneID = CKRecordZone.ID(zoneName: "PresenceFM", ownerName: CKCurrentUserDefaultName)
+    static let zoneID = CKRecordZone.ID(zoneName: "Aura", ownerName: CKCurrentUserDefaultName)
     private let database: CKDatabase?
     private let deviceID: UUID
     private let username: @Sendable () async -> String?

@@ -1,4 +1,4 @@
-# PresenceFM Release Manual QA
+# Aura Release Manual QA
 
 Record the app version, macOS version, and pass/fail evidence for every item. Do not attach secrets or unredacted personal paths.
 
@@ -7,17 +7,17 @@ Record the app version, macOS version, and pass/fail evidence for every item. Do
 - Verify the release archive checksum, move the app to Applications, and confirm its signature/notarization. For an unsigned test build, complete the documented Gatekeeper flow.
 - Deny Apple Music Automation once; confirm the app shows permission required, publishes nothing, and explains recovery.
 - Grant Automation access and confirm playing, paused, stopped, local-file, and Apple Music radio states.
-- Seek forward and backward, pause for several minutes, change tracks, quit Music, and relaunch PresenceFM. Confirm listening time and recent activity remain credible.
-- Confirm album artwork appears without delaying metadata updates, changes with the track, and falls back to the PresenceFM mark when unavailable.
+- Seek forward and backward, pause for several minutes, change tracks, quit Music, and relaunch Aura. Confirm listening time and recent activity remain credible.
+- Confirm album artwork appears without delaying metadata updates, changes with the track, and falls back to the Aura mark when unavailable.
 - Confirm elapsed/remaining playback time and scrobble eligibility progress remain correct while playing, paused, and seeking.
 
 ## Spotify, YouTube Music, and TIDAL
 
 - With Apple Music stopped, verify Spotify play, pause, seek, skip, app quit, and relaunch behavior, including platform-aware links and Discord branding.
-- Enable YTMDesktop 2's Companion Server and authorization, connect from PresenceFM, and verify play, pause, seek, skip, token rejection, disconnect, and reconnect behavior.
+- Enable YTMDesktop 2's Companion Server and authorization, connect from Aura, and verify play, pause, seek, skip, token rejection, disconnect, and reconnect behavior.
 - Verify YouTube Music live streams are visible but never scrobbled.
 - Verify TIDAL playback through macOS Now Playing for play, pause, seek, skip, app quit, sleep/wake, and relaunch. Record the macOS and TIDAL versions because this provider uses a best-effort system metadata surface.
-- Play from two providers simultaneously and verify PresenceFM selects one deterministically, changes source without duplicate activity, and recovers when the selected provider closes.
+- Play from two providers simultaneously and verify Aura selects one deterministically, changes source without duplicate activity, and recovers when the selected provider closes.
 - Reorder providers under **Settings → Players**, relaunch, and confirm the order persists and decides a simultaneous start without displacing an already-playing source.
 - Confirm a permission or metadata failure in one provider does not hide valid playback from another.
 
@@ -25,8 +25,8 @@ Record the app version, macOS version, and pass/fail evidence for every item. Do
 
 - Start with Discord closed and confirm an offline state without repeated prompts or crashes.
 - Launch Discord, play a track, and confirm title, artist/album, and timer settings.
-- Pause playback, enable Private Mode, quit Music, and quit PresenceFM; confirm presence clears in each case.
-- Relaunch Discord and PresenceFM and confirm presence recovers without rerunning onboarding.
+- Pause playback, enable Private Mode, quit Music, and quit Aura; confirm presence clears in each case.
+- Relaunch Discord and Aura and confirm presence recovers without rerunning onboarding.
 - Change album, timer, and link options during playback and confirm Discord presence refreshes immediately.
 - Use timed Private Mode, sleep and wake the Mac across its expiration, and confirm presence resumes at the expected time.
 
@@ -39,7 +39,7 @@ Record the app version, macOS version, and pass/fail evidence for every item. Do
 - Confirm an Apple Music Radio song with title and artist metadata uses the normal threshold when duration is available, or 30 observed seconds when it is unknown; it should scrobble exactly once after its metadata changes and be marked as radio-selected without an invented duration.
 - Confirm Apple Music Radio still has no finite progress/timer when duration is unavailable; a radio song that changes before eligibility remains local as Listened.
 - Confirm a brief stopped/metadata gap does not create a false Skipped history row, while an actual playing-track replacement before threshold still does.
-- Disconnect networking through the eligibility point, relaunch PresenceFM, reconnect, and confirm the queued scrobble submits once.
+- Disconnect networking through the eligibility point, relaunch Aura, reconnect, and confirm the queued scrobble submits once.
 - Revoke the Last.fm session and confirm authorization-expired state plus a usable reauthorization path.
 - Disconnect Last.fm in Settings and confirm scrobbling is disabled while the API key and shared secret remain available for reauthorization.
 - Exercise retry and remove actions on failed queue records.
@@ -55,7 +55,7 @@ Record the app version, macOS version, and pass/fail evidence for every item. Do
 
 - Deny notifications and confirm the app continues working without repeated prompts or errors.
 - Trigger lost Automation permission, expired Last.fm authorization, and three queue failures; confirm each condition produces at most one redacted notification.
-- Click each notification and confirm PresenceFM opens the corresponding Diagnostics, Settings, or Queue section.
+- Click each notification and confirm Aura opens the corresponding Diagnostics, Settings, or Queue section.
 - Exercise Automation Settings, Discord reconnect, Last.fm reconnect, and queue retry actions from the app.
 - Run the Shortcuts actions for starting/ending Private Mode, checking privacy status, and opening the dashboard. Confirm starting Private Mode immediately clears Discord and suppresses Last.fm.
 
@@ -70,10 +70,10 @@ Record the app version, macOS version, and pass/fail evidence for every item. Do
 
 ## Lifecycle and compatibility
 
-- Choose **PresenceFM → Check for Updates…** and confirm the current-version result is shown. Repeat from **Settings → General → Updates**.
+- Choose **Aura → Check for Updates…** and confirm the current-version result is shown. Repeat from **Settings → General → Updates**.
 - Toggle automatic update checks and downloads, relaunch, and confirm both preferences persist. Confirm automatic downloads are unavailable when automatic checks are disabled.
 - From an older signed test build pointed at a test appcast, download and install the newer DMG in app, relaunch, and confirm the displayed version/build changed without losing local data or preferences.
-- Tamper with a signed update archive and confirm PresenceFM refuses to install it.
+- Tamper with a signed update archive and confirm Aura refuses to install it.
 - Close the dashboard while leaving the menu-bar item active; confirm monitoring continues.
 - Verify launch at login registration and removal.
 - Run on macOS 15–25 and confirm standard materials/buttons render correctly.

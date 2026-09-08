@@ -8,20 +8,20 @@ TOOLCHAIN_DIR="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain"
 SDK_ROOT="$(xcrun --sdk macosx --show-sdk-path)"
 XCODE_BUILD="$(xcodebuild -version | sed -n '2s/Build version //p')"
 ARCH="$(uname -m)"
-SOURCE_LIST="$(mktemp /tmp/presencefm-intent-sources.XXXXXX)"
-CONST_LIST="$(mktemp /tmp/presencefm-intent-constants.XXXXXX)"
+SOURCE_LIST="$(mktemp /tmp/aura-intent-sources.XXXXXX)"
+CONST_LIST="$(mktemp /tmp/aura-intent-constants.XXXXXX)"
 trap 'rm -f "$SOURCE_LIST" "$CONST_LIST"' EXIT
 
-find "$ROOT/Sources/PresenceFM" -name '*.swift' -type f -print | sort > "$SOURCE_LIST"
-if [[ "${PRESENCEFM_FORCE_APP_INTENTS_METADATA_FALLBACK:-0}" == "1" ]]; then
+find "$ROOT/Sources/Aura" -name '*.swift' -type f -print | sort > "$SOURCE_LIST"
+if [[ "${AURA_FORCE_APP_INTENTS_METADATA_FALLBACK:-0}" == "1" ]]; then
     : > "$CONST_LIST"
 else
     while IFS= read -r constant_values; do
         case "$constant_values" in
-            */Debug/*|*/debug/*|*PresenceFMTests*|*-testable-*|*/presencefm-app-intents/*)
+            */Debug/*|*/debug/*|*AuraTests*|*-testable-*|*/aura-app-intents/*)
                 continue
                 ;;
-            */PresenceFM.build/*|*/PresenceFM-p.build/*)
+            */Aura.build/*|*/Aura-p.build/*)
                 print -r -- "$constant_values"
                 ;;
         esac
@@ -44,7 +44,7 @@ rm -rf "$OUTPUT_DIRECTORY/Metadata.appintents"
 xcrun appintentsmetadataprocessor \
     --output "$OUTPUT_DIRECTORY" \
     --toolchain-dir "$TOOLCHAIN_DIR" \
-    --module-name PresenceFM \
+    --module-name Aura \
     --sdk-root "$SDK_ROOT" \
     --xcode-version "$XCODE_BUILD" \
     --platform-family macOS \

@@ -1,4 +1,4 @@
-# PresenceFM 0.4.0 QA Record
+# Aura 0.4.0 QA Record
 
 Date: 2026-07-12
 
@@ -12,7 +12,7 @@ Environment: Apple silicon Mac, macOS 26 development environment, Swift 6.2 / Xc
 - Issue-template and workflow YAML parsing: pass.
 - `git diff --check`: pass.
 - DMG creation and `hdiutil verify`: pass.
-- Packaged metadata: PresenceFM 0.4.0 (build 1), minimum macOS 15.
+- Packaged metadata: Aura 0.4.0 (build 1), minimum macOS 15.
 - Packaged SwiftPM resources, app icon, Apple Events usage text and entitlement,
   Discord application ID, and runtime-reported 0.4.0 version: pass.
 - Pull-request CI mirrors tests, patch hygiene, release packaging, app-bundle
@@ -25,15 +25,15 @@ Environment: Apple silicon Mac, macOS 26 development environment, Swift 6.2 / Xc
 - Settings render the Discord display controls and all four music-platform paths.
 - Diagnostics reports runtime version 0.4.0 and the redacted support-report copy
   action confirms completion without exposing credentials or listening metadata.
-- DMG mounts with PresenceFM and Applications arranged in a branded Finder window.
+- DMG mounts with Aura and Applications arranged in a branded Finder window.
 - Installer background was iterated after visual inspection to provide contrast
   behind Finder's fixed black icon labels.
 - Final DMG inspection confirms a visible white right-pointing drag arrow between
-  PresenceFM and Applications without obscuring either icon or label.
+  Aura and Applications without obscuring either icon or label.
 
 ## Deterministic integration coverage
 
-- Discord external artwork, neutral artwork tooltip, fallback asset, PresenceFM
+- Discord external artwork, neutral artwork tooltip, fallback asset, Aura
   small logo, and Spotify platform-logo payloads.
 - YTMDesktop Companion Server state parsing, progress, metadata, link generation,
   and live-stream scrobble exclusion.
@@ -53,7 +53,7 @@ Live YTMDesktop, Spotify, TIDAL, and Last.fm account checks require those deskto
 apps/accounts to be present. They were unavailable in this environment. Discord
 and Apple Music were available for packaged-app inspection.
 
-PresenceFM 0.4.0 was released with the following explicitly accepted gaps; none
+Aura 0.4.0 was released with the following explicitly accepted gaps; none
 of these are implied passes:
 
 - Live Spotify, YTMDesktop, TIDAL, and Last.fm account flows.

@@ -34,23 +34,23 @@ jobs:
 
       - name: Package app
         env:
-          PRESENCEFM_VERSION: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('preview-{0}', github.run_number) }}
-          PRESENCEFM_BUILD_NUMBER: ${{ github.run_number }}
-          PRESENCEFM_SIGNING_IDENTITY: "-"
-          PRESENCEFM_SKIP_SIGNING: "0"
+          AURA_VERSION: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('preview-{0}', github.run_number) }}
+          AURA_BUILD_NUMBER: ${{ github.run_number }}
+          AURA_SIGNING_IDENTITY: "-"
+          AURA_SKIP_SIGNING: "0"
         run: ./scripts/package-app.sh
 
       - name: Create DMG
         env:
-          PRESENCEFM_VERSION: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('preview-{0}', github.run_number) }}
-        run: ./scripts/create-dmg.sh "${PRESENCEFM_VERSION}"
+          AURA_VERSION: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('preview-{0}', github.run_number) }}
+        run: ./scripts/create-dmg.sh "${AURA_VERSION}"
 
       - name: Upload preview DMG
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preview-dmg
           path: |
-            PresenceFM-*.dmg
-            PresenceFM-*.sha256
+            Aura-*.dmg
+            Aura-*.sha256
           if-no-files-found: error
           retention-days: 14

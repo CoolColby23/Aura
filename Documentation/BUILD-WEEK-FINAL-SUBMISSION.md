@@ -8,10 +8,10 @@ not included in the repository.
 
 ## Already prepared
 
-- Public MIT-licensed repository: <https://github.com/CoolColby23/PresenceFM>
-- Devpost project: <https://devpost.com/software/presence-fm>
+- Public MIT-licensed repository: <https://github.com/CoolColby23/Aura>
+- Devpost project: <https://devpost.com/software/aura-fm>
 - Category: **Apps for Your Life**
-- Credential-free judge command: `swift run PresenceFM --demo`
+- Credential-free judge command: `swift run Aura --demo`
 - Demo safety gates that block Discord and Last.fm publishing
 - Automated Build Week verification: `./scripts/verify-build-week.sh`
 - Under-three-minute narration and screen plan:
@@ -27,7 +27,7 @@ Devpost form.
 
 ### 1. Review the project description in your own voice
 
-1. Open <https://devpost.com/software/presence-fm>.
+1. Open <https://devpost.com/software/aura-fm>.
 2. Sign in to the Devpost account that owns the project.
 3. Choose **Manage project** or **Edit project**.
 4. Read the tagline and full description aloud.
@@ -47,13 +47,13 @@ Prepare the app before recording:
 2. Run:
 
    ```sh
-   cd /path/to/PresenceFM
-   swift run PresenceFM --demo
+   cd /path/to/Aura
+   swift run Aura --demo
    ```
 
 3. Let Demo Mode complete at least two sample tracks so **Listening History**
    has content.
-4. Arrange the PresenceFM window, repository, and Terminal so no private
+4. Arrange the Aura window, repository, and Terminal so no private
    notification, credential, username, or unrelated listening history is shown.
 
 Record on macOS:
@@ -70,7 +70,7 @@ Record on macOS:
 Publish:
 
 1. Sign in to YouTube and choose **Create → Upload video**.
-2. Use a clear title such as `PresenceFM — OpenAI Build Week Demo`.
+2. Use a clear title such as `Aura — OpenAI Build Week Demo`.
 3. Set visibility to **Public**. Do not leave it Private, Draft, or Scheduled.
 4. Finish the upload and wait for processing.
 5. Open the public URL in a private/incognito browser window.
@@ -80,7 +80,7 @@ Publish:
 
 ### 3. Retrieve the Codex Session ID
 
-1. Open the primary Codex task where most of PresenceFM's core Build Week work
+1. Open the primary Codex task where most of Aura's core Build Week work
    happened.
 2. Enter `/feedback`.
 3. Copy the Session ID shown by Codex.
@@ -114,8 +114,8 @@ Submit the final Devpost entry: yes
 Codex can then fill:
 
 - Category: `Apps for Your Life`
-- Repository: `https://github.com/CoolColby23/PresenceFM`
-- Judge instructions: run `swift run PresenceFM --demo` on macOS 15 or later;
+- Repository: `https://github.com/CoolColby23/Aura`
+- Judge instructions: run `swift run Aura --demo` on macOS 15 or later;
   no music or service credentials are needed, and external publishing is paused
   during the demo.
 

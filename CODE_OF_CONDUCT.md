@@ -1,6 +1,6 @@
 # Code of Conduct
 
-PresenceFM contributors are expected to make participation welcoming, respectful,
+Aura contributors are expected to make participation welcoming, respectful,
 and harassment-free, regardless of experience, identity, background, or ability.
 
 Be constructive, assume good intent, respect privacy, and focus criticism on the
@@ -13,4 +13,4 @@ remove contributions or restrict participation when necessary to protect the
 community.
 
 This policy applies in the repository, issue tracker, discussions, reviews, and
-other spaces where someone is representing PresenceFM.
+other spaces where someone is representing Aura.
