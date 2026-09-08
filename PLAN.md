@@ -6,7 +6,7 @@ This file tracks forward-looking outcomes. Shipped work belongs in
 Status notation: `[ ]` planned, `[-]` in progress or partially verified, and
 `[x]` complete.
 
-## Current development — 2.0.0
+## Current release — 2.0.0
 
 Version 2.0 renames PresenceFM to Aura, introduces the Aura halo and adaptive
 theme system across Mac, iPhone, web, and widget source, and preserves existing
@@ -22,8 +22,9 @@ stores, credentials, Keychain items, and backups through the transition.
   icons and a web manifest, and type-check widget source in CI.
 - [x] Pass automated Mac, shared-core, iOS simulator, website, credential-scan,
   widget-source, and package verification for the 2.0 release candidate.
-- [-] Complete the manual release gates in `Documentation/QA-2.0.0.md` before
-  tagging the public release.
+- [-] Continue the manual and hardware-dependent validation recorded in
+  `Documentation/QA-2.0.0.md`; the public release must not imply that unchecked
+  scenarios have been verified.
 
 ## Next
 

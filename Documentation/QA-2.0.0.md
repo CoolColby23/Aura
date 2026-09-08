@@ -7,6 +7,13 @@ hardware-dependent release evidence. A blank item is not a pass. Simulator
 results do not establish iOS background behavior, and one Mac cannot establish
 the full compatibility matrix.
 
+## Release decision
+
+The repository owner authorized the public 2.0.0 release on 2026-09-07 with the
+unchecked manual and hardware-dependent items below remaining as explicit
+post-release validation. Release notes and product copy must not represent those
+unchecked scenarios as verified behavior.
+
 ## Automated evidence
 
 - [x] Shared-core and macOS Swift tests pass (135 tests total).
