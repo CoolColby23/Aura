@@ -1,5 +1,5 @@
+import AuraCore
 import Foundation
-import PresenceFMCore
 
 struct CompanionSnapshot: Codable, Sendable {
     var baseline: CaptureBaseline?
@@ -20,14 +20,20 @@ struct DiagnosticEntry: Identifiable, Codable, Sendable {
     init(category: String, message: String) { id = UUID(); date = .now; self.category = category; self.message = message }
 }
 
+enum CompanionStoreError: LocalizedError {
+    case invalidScrobbleMetadata
+
+    var errorDescription: String? { "A title and artist are required before retrying this scrobble." }
+}
+
 actor CompanionStore {
     private let fileURL: URL
     private var snapshot: CompanionSnapshot
 
     init(fileURL: URL? = nil) {
         let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let currentURL = applicationSupport.appendingPathComponent("PresenceFM", isDirectory: true).appendingPathComponent("ledger.json")
-        let legacyURL = applicationSupport.appendingPathComponent("PresenceFMCompanion", isDirectory: true).appendingPathComponent("ledger.json")
+        let currentURL = applicationSupport.appendingPathComponent("Aura", isDirectory: true).appendingPathComponent("ledger.json")
+        let legacyURL = applicationSupport.appendingPathComponent("AuraCompanion", isDirectory: true).appendingPathComponent("ledger.json")
         self.fileURL = fileURL ?? currentURL
         let readableURL = fileURL ?? ([currentURL, legacyURL].first { FileManager.default.isReadableFile(atPath: $0.path) } ?? currentURL)
         if let data = try? Data(contentsOf: readableURL) {
@@ -69,6 +75,18 @@ actor CompanionStore {
     }
 
     @discardableResult func ingest(_ evidence: PlaybackEvidence) throws -> CanonicalListen {
+        let listen = ingestWithoutPersisting(evidence)
+        try persist()
+        return listen
+    }
+
+    func ingest(_ evidence: [PlaybackEvidence]) throws {
+        guard !evidence.isEmpty else { return }
+        for item in evidence { _ = ingestWithoutPersisting(item) }
+        try persist()
+    }
+
+    private func ingestWithoutPersisting(_ evidence: PlaybackEvidence) -> CanonicalListen {
         let merger = DefaultEvidenceMerger(); let decision = merger.merge(evidence, into: snapshot.listens)
         let baseline = snapshot.baseline ?? CaptureBaseline(establishedAt: evidence.capturedAt)
         let eligibility = ScrobbleEligibilityPolicy.evaluate(evidence, baseline: baseline)
@@ -84,14 +102,14 @@ actor CompanionStore {
             let index = snapshot.listens.firstIndex(where: { $0.id == id })!
             var merged = EvidenceReducer.add(evidence, to: snapshot.listens[index])
             if merged.state == .listening || merged.state == .review { merged.state = state; merged.reviewReason = reason }
-            snapshot.listens[index] = merged; try persist(); return merged
+            snapshot.listens[index] = merged; return merged
         case .review(_, let mergeReason):
             let id = CanonicalListenIdentity.make(for: evidence)
             let listen = CanonicalListen(id: id, evidence: [evidence], metadata: evidence.originalMetadata, state: .review, reviewReason: mergeReason)
-            snapshot.listens.append(listen); try persist(); return listen
+            snapshot.listens.append(listen); return listen
         case .newListen(let id):
             let listen = CanonicalListen(id: id, evidence: [evidence], metadata: evidence.originalMetadata, state: state, reviewReason: reason)
-            snapshot.listens.append(listen); try persist(); return listen
+            snapshot.listens.append(listen); return listen
         }
     }
 
@@ -102,11 +120,24 @@ actor CompanionStore {
         snapshot.listens[index].failureReason = failureReason
         try persist()
     }
+    func setState(_ state: ListenState, for ids: Set<String>) throws {
+        guard !ids.isEmpty else { return }
+        for index in snapshot.listens.indices where ids.contains(snapshot.listens[index].id) {
+            snapshot.listens[index].state = state
+        }
+        try persist()
+    }
     func correct(id: String, title: String, artist: String, album: String?) throws {
         guard let index = snapshot.listens.firstIndex(where: { $0.id == id }) else { return }
-        snapshot.listens[index].canonicalMetadata.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        snapshot.listens[index].canonicalMetadata.artist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
-        snapshot.listens[index].canonicalMetadata.album = album?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanTitle.isEmpty, !cleanArtist.isEmpty else {
+            throw CompanionStoreError.invalidScrobbleMetadata
+        }
+        snapshot.listens[index].canonicalMetadata.title = cleanTitle
+        snapshot.listens[index].canonicalMetadata.artist = cleanArtist
+        let cleanAlbum = album?.trimmingCharacters(in: .whitespacesAndNewlines)
+        snapshot.listens[index].canonicalMetadata.album = cleanAlbum?.isEmpty == false ? cleanAlbum : nil
         // A permanent rejection is about the metadata Last.fm saw. Correcting it
         // produces a different submission, so the play earns another attempt.
         if snapshot.listens[index].state == .failed, snapshot.listens[index].failureReason != nil {
@@ -131,7 +162,7 @@ actor CompanionStore {
     }
 
     func diagnosticsExport() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("PresenceFM-iOS-Diagnostics.json")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Aura-iOS-Diagnostics.json")
         let data = try JSONEncoder.pretty.encode(snapshot.diagnostics); try data.write(to: url, options: .atomic); return url
     }
 

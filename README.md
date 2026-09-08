@@ -1,27 +1,38 @@
 <!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires updating signatures in appcasts that reference this file! This will involve re-running generate_appcast or sign_update.
 -->
-# PresenceFM
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/Exports/aura-logo-dark.png" />
+  <img src="brand/Exports/aura-logo-light.png" alt="Aura — now playing, everywhere." width="244" />
+</picture>
 
-PresenceFM is a native macOS menu-bar app that reads current playback from Apple Music, Spotify, YouTube Music through YTMDesktop, or TIDAL, publishes optional Discord Rich Presence, and scrobbles qualified listens to Last.fm. It runs locally, starts private, and requires no PresenceFM account or backend.
+# Aura
+
+> **Aura was previously called PresenceFM.** The app, its identity, and its bundle
+> identifiers were renamed; the GitHub repository and the `presence-fm.vercel.app`
+> deployment still use the old name until they are renamed separately. Existing
+> installs migrate their listening history and saved credentials automatically on
+> first launch — see [CHANGELOG.md](CHANGELOG.md).
+
+Aura is a native macOS menu-bar app that reads current playback from Apple Music, Spotify, YouTube Music through YTMDesktop, or TIDAL, publishes optional Discord Rich Presence, and scrobbles qualified listens to Last.fm. It runs locally, starts private, and requires no Aura account or backend.
 
 ## Download
 
-- [Download the latest stable release](https://github.com/CoolColby23/PresenceFM/releases/latest)
-- [Browse pre-releases](https://github.com/CoolColby23/PresenceFM/releases) for opt-in beta and RC builds.
+- [Download the latest stable release](https://github.com/CoolColby23/Aura/releases/latest)
+- [Browse pre-releases](https://github.com/CoolColby23/Aura/releases) for opt-in beta and RC builds.
 - Visit [presence-fm.vercel.app](https://presence-fm.vercel.app/) for the feature overview.
 
-Releases currently use ad-hoc signing. Follow the first-launch instructions under [Install](#install) after dragging PresenceFM to Applications.
+Releases currently use ad-hoc signing. Follow the first-launch instructions under [Install](#install) after dragging Aura to Applications.
 
 ## Demo and OpenAI Build Week quickstart
 
-PresenceFM is entered in **Apps for Your Life**. Judges can exercise the real
+Aura is entered in **Apps for Your Life**. Judges can exercise the real
 now-playing, scrobble-eligibility, and listening-history pipeline without music
 accounts or credentials:
 
 ```sh
 swift test
-swift run PresenceFM --demo
+swift run Aura --demo
 ```
 
 The `--demo` launch skips onboarding for that run and immediately rotates short
@@ -38,12 +49,12 @@ path. The concise recording plan is in
 The original submission checklist is retained in
 [Documentation/BUILD-WEEK-FINAL-SUBMISSION.md](Documentation/BUILD-WEEK-FINAL-SUBMISSION.md) as project history.
 
-## Road to version 1.2
+## Road to version 2.0
 
-The v1.2 work adds user-confirmed Apple Music history scrobbling on iPhone and a shared scrobble-confidence model across both apps. GitHub Releases use two channels:
+Version 2.0 renames the app from PresenceFM to Aura and rebuilds its visual identity, on top of the user-confirmed Apple Music history scrobbling on iPhone, the shared scrobble-confidence model across both apps, and stronger queue recovery on Mac. GitHub Releases use two channels:
 
-- **Production** — tags like `v1.1.0` publish as Latest and update the Sparkle appcast.
-- **Pre-release** — tags like `v1.1.0-beta.1` or `v1.1.0-rc.1` publish as Pre-release and never replace Latest.
+- **Production** — tags like `v2.0.0` publish as Latest and update the Sparkle appcast.
+- **Pre-release** — tags like `v2.0.0-beta.1` or `v2.0.0-rc.1` publish as Pre-release and never replace Latest.
 
 The `VERSION` file is the source of truth for release builds and tags. See [CONTRIBUTING.md](CONTRIBUTING.md) for the release ladder.
 
@@ -59,11 +70,11 @@ The `VERSION` file is the source of truth for release builds and tags. See [CONT
 - Configurable provider priority, correction-before-retry for rejected scrobbles, and metadata-free release-verification snapshots.
 - Shortcuts actions for Private Mode, privacy status, and opening the dashboard.
 - A menu-bar control center, reusable Discord profiles, Last.fm exclusion rules, and a shareable weekly recap.
-- Authenticated encrypted iCloud backups in builds signed with the PresenceFM iCloud container entitlement.
+- Authenticated encrypted iCloud backups in builds signed with the Aura iCloud container entitlement.
 
-Listening insights are calculated entirely on this Mac from PresenceFM's local activity records. They are never uploaded by PresenceFM.
+Listening insights are calculated entirely on this Mac from Aura's local activity records. They are never uploaded by Aura.
 
-The desktop WidgetKit source is ready, but widget distribution and shared live data require an Apple-signed app-group entitlement. See [Documentation/WIDGET.md](Documentation/WIDGET.md); PresenceFM does not represent that capability as shipped in ad-hoc builds.
+The desktop WidgetKit source is ready, but widget distribution and shared live data require an Apple-signed app-group entitlement. See [Documentation/WIDGET.md](Documentation/WIDGET.md); Aura does not represent that capability as shipped in ad-hoc builds.
 
 ## Rich Now Playing
 
@@ -74,13 +85,13 @@ The desktop WidgetKit source is ready, but widget distribution and shared live d
 - Actionable, deduplicated notifications for permission loss, expired Last.fm authorization, and persistently stuck scrobbles.
 - Locally advancing playback progress between provider polls, with VoiceOver announcements throttled to meaningful 15-second changes.
 
-Provider order is configurable under **Settings → Players**. PresenceFM retains an already-playing provider to avoid false transitions; the configured order decides simultaneous starts.
+Provider order is configurable under **Settings → Players**. Aura retains an already-playing provider to avoid false transitions; the configured order decides simultaneous starts.
 
 The Queue screen can correct rejected title, artist, and album metadata before retrying while retaining the original listen timestamp and duplicate protection. Diagnostics can copy or save a release-verification snapshot that excludes track metadata, usernames, credentials, and paths.
 
-PresenceFM exposes Shortcuts actions to start or end Private Mode, check privacy status, and open the dashboard.
+Aura exposes Shortcuts actions to start or end Private Mode, check privacy status, and open the dashboard.
 
-Artwork is read from Apple Music and stored only in a bounded temporary cache. Missing or unsupported artwork falls back to the PresenceFM mark.
+Artwork is read from Apple Music and stored only in a bounded temporary cache. Missing or unsupported artwork falls back to the Aura mark.
 
 ## Requirements
 
@@ -94,14 +105,14 @@ Artwork is read from Apple Music and stored only in a bounded temporary cache. M
 ## Install
 
 1. Download the `.dmg` and `.sha256` files from GitHub Releases.
-2. Verify with `shasum -a 256 -c PresenceFM-*.sha256`.
-3. Open the disk image and drag PresenceFM to Applications.
-4. Open PresenceFM. For an older unsigned release, Control-click PresenceFM and choose **Open**; if macOS still blocks it, approve it under **System Settings → Privacy & Security**.
+2. Verify with `shasum -a 256 -c Aura-*.sha256`.
+3. Open the disk image and drag Aura to Applications.
+4. Open Aura. For an older unsigned release, Control-click Aura and choose **Open**; if macOS still blocks it, approve it under **System Settings → Privacy & Security**.
 5. Approve Apple Music Automation access when prompted.
 
-PresenceFM releases are ad-hoc signed because the project does not use a paid Apple Developer account. macOS cannot notarize these builds, so the first launch requires the Control-click **Open** flow described above.
+Aura releases are ad-hoc signed because the project does not use a paid Apple Developer account. macOS cannot notarize these builds, so the first launch requires the Control-click **Open** flow described above.
 
-After installation, PresenceFM checks the official GitHub release feed for updates. Use **PresenceFM → Check for Updates…** at any time, or manage automatic checks and downloads under **Settings → General → Updates**. Update archives are verified with PresenceFM's Sparkle EdDSA signing key before installation.
+After installation, Aura checks the official GitHub release feed for updates. Use **Aura → Check for Updates…** at any time, or manage automatic checks and downloads under **Settings → General → Updates**. Update archives are verified with Aura's Sparkle EdDSA signing key before installation.
 
 ## Build from source
 
@@ -110,7 +121,7 @@ swift build
 swift test
 ./scripts/package-app.sh
 ./scripts/verify-package.sh
-open PresenceFM.app
+open Aura.app
 ```
 
 ### Source-built iPhone companion
@@ -119,13 +130,13 @@ The repository also contains an iOS 18 Apple Music scrobbling companion. It is n
 
 Personal configuration lives in ignored `Config/Local.xcconfig`. Credentials and session tokens must never be committed.
 
-PresenceFM includes Discord application ID `1525555974390153346`. Development builds can still override it under **Settings → Advanced** or with `PRESENCEFM_DISCORD_APPLICATION_ID` while packaging.
+Aura includes Discord application ID `1525555974390153346`. Development builds can still override it under **Settings → Advanced** or with `AURA_DISCORD_APPLICATION_ID` while packaging.
 
-Each user supplies their own Last.fm API key and shared secret during onboarding. To avoid repeated macOS Keychain prompts in ad-hoc signed releases, PresenceFM stores those credentials and the resulting session token in `~/Library/Application Support/PresenceFM/credentials.json`, readable only by the current macOS user. They are never bundled into releases.
+Each user supplies their own Last.fm API key and shared secret during onboarding. To avoid repeated macOS Keychain prompts in ad-hoc signed releases, Aura stores those credentials and the resulting session token in `~/Library/Application Support/Aura/credentials.json`, readable only by the current macOS user. They are never bundled into releases.
 
 ## Scrobbling behavior
 
-A track becomes eligible after listening to 50% of its duration or four minutes, whichever comes first. Tracks of 30 seconds or less and tracks with incomplete metadata are not scrobbled. Apple Music Radio songs with usable title and artist metadata use the normal threshold when duration is available, or 30 seconds of directly observed playback when it is unknown. PresenceFM omits radio duration and marks the scrobble as radio-selected. Other unsupported live streams remain visible in Now Playing, Discord presence, and local history but are not sent to Last.fm. Eligible submissions are deduplicated and retained locally for retry when Last.fm is unavailable.
+A track becomes eligible after listening to 50% of its duration or four minutes, whichever comes first. Tracks of 30 seconds or less and tracks with incomplete metadata are not scrobbled. Apple Music Radio songs with usable title and artist metadata use the normal threshold when duration is available, or 30 seconds of directly observed playback when it is unknown. Aura omits radio duration and marks the scrobble as radio-selected. Other unsupported live streams remain visible in Now Playing, Discord presence, and local history but are not sent to Last.fm. Eligible submissions are deduplicated and retained locally for retry when Last.fm is unavailable.
 
 See [PLAN.md](PLAN.md) for planned work, plus [PRIVACY.md](PRIVACY.md),
 [SECURITY.md](SECURITY.md), [SUPPORT.md](SUPPORT.md), and
@@ -134,6 +145,6 @@ See [PLAN.md](PLAN.md) for planned work, plus [PRIVACY.md](PRIVACY.md),
 
 ## Open source
 
-PresenceFM is available under the [MIT License](LICENSE). Bug reports, focused fixes, accessibility improvements, provider reliability work, and documentation contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and please use private vulnerability reporting for security issues.
+Aura is available under the [MIT License](LICENSE). Bug reports, focused fixes, accessibility improvements, provider reliability work, and documentation contributions are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md), and please use private vulnerability reporting for security issues.
 
 Third-party software and service marks remain subject to their respective terms; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

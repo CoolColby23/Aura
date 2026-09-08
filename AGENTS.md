@@ -6,4 +6,4 @@ Use the repository preview app sync workflow when changing app behavior, packagi
 ./scripts/sync-preview-app.sh
 ```
 
-This rebuilds the app bundle and updates the copy in /Applications/PresenceFM.app.
+This rebuilds the app bundle and updates the copy in /Applications/Aura.app.

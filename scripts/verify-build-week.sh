@@ -10,7 +10,7 @@ required=(
   "Documentation/OPENAI-BUILD-WEEK.md"
   "Documentation/BUILD-WEEK-DEMO-SCRIPT.md"
   "Documentation/BUILD-WEEK-FINAL-SUBMISSION.md"
-  "Sources/PresenceFM/DemoPlayback.swift"
+  "Sources/Aura/DemoPlayback.swift"
 )
 
 for required_path in "${required[@]}"; do
@@ -23,4 +23,4 @@ swift test -c release
 ./scripts/verify-website.sh
 git diff --check
 
-echo "Build Week verification passed. Launch with: open PresenceFM.app --args --demo"
+echo "Build Week verification passed. Launch with: open Aura.app --args --demo"

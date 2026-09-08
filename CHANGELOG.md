@@ -1,10 +1,25 @@
 # Changelog
 
-## 1.3.0 - Unreleased
+## 2.0.0 - Unreleased
+
+### Rebrand: PresenceFM is now Aura
+
+- Rename the app, its wordmark, bundle identifiers, Swift targets, Xcode project, and every user-facing string from **PresenceFM** to **Aura**. The tagline is now "Now playing, everywhere."
+- Replace the spinning-disc mark with the Aura halo: a soft gradient ring with a small core. The brand motion signature is now a slow gradient sweep around that ring rather than a rotating disc, still one revolution every 12 seconds and still frozen in place under Reduce Motion.
+- Replace the electric-blue/cyan palette with the Aura sweep — peach, blush, lilac, indigo — over violet-tinted neutrals. Status colors are now specified per appearance so body-size text clears WCAG AA on both the light and dark canvas.
+- Rebuild surfaces on system materials with continuous rounding and tinted-glow elevation instead of flat fills and hairline borders, across the Mac app, the iPhone companion, and the website.
+- Round every surface continuously, which `RoundedRectangle` and `.rect(cornerRadius:)` do not do by default. Chips, key caps, artwork thumbnails, and settings pills now come from named radius tokens instead of one-off literals, symbol tiles hold a constant corner-to-edge ratio so a menu-bar tile and a card tile read as the same shape, and circular artwork in the iPhone charts is an actual circle rather than a rounded rectangle at half its frame.
+- Follow the chosen theme in the last places that ignored it: the appearance and theme pickers used the macOS system accent rather than Aura's own, the appearance previews showed a fixed navy window instead of the palettes being assigned, the scrobble-eligibility bar was untinted, and the "scrobbling now" badge was pinned to indigo on every theme.
+- Move the iPhone app's status colors onto the measured brand palette instead of system `.green` / `.orange` / `.red`, and give the two review lists the same swipe-action tints.
+- Brand the source-ready desktop widget with the halo mark and a sweep-filled progress bar, plus a mono halo for accented and vibrant rendering modes. The widget is not embedded in ad-hoc releases while it awaits the app-group signing prerequisites in `Documentation/WIDGET.md`.
+- Ship PNG forms of every mark in `brand/Exports/`, add a full-bleed `touch-icon` for platform-masked home-screen and browser icons, and give the website PNG favicons, an Apple touch icon, and a web manifest.
+- Stop shipping raster brand art the app never loads. The apps draw the halo natively, while the unembedded widget source does the same, so the exports, iconset, and duplicate icon moved to `brand/`, taking the resource bundle from 6.6 MB to 28 KB and the disk image from 8.7 MB to 4.6 MB.
+- Type-check the widget extension source in CI, which nothing did while it waits on those signing prerequisites.
+- Carry existing data forward automatically on first launch. The listening store migrates from `PresenceFM/PresenceFM.store` to `Aura/Aura.store`, saved Last.fm and Discord credentials migrate from `PresenceFM/credentials.json`, the iPhone companion adopts its Keychain items from the previous service name, and `.presencefmbackup` files remain restorable.
 
 - Add filtering, search, and bulk recovery to the Mac pending-plays queue: switch between all, automatically retrying, and blocked plays; search queued title, artist, and album; retry every pending play at once after an outage; and remove blocked plays in one step without touching plays that are still retrying.
 - Tell people when the Mac queue will next retry on its own, and offer a direct jump to the plays that need a correction.
-- Move scrobble-capture titles, symbols, tone, and recovery button copy into `PresenceFMCore` so the Mac and iPhone apps describe identical situations identically, replacing per-app tables that had already drifted.
+- Move scrobble-capture titles, symbols, tone, and recovery button copy into `AuraCore` so the Mac and iPhone apps describe identical situations identically, replacing per-app tables that had already drifted.
 - Give the iPhone scrobble history a search field with a match count, and a distinct no-match state that explains more history can be pulled in.
 - Separate "re-scan recently played music" from "open Settings" as capture recovery actions, and send denied Apple Music access to iOS Settings instead of a prompt iOS will not show again.
 - Read scrobble status cards as one VoiceOver statement instead of four fragments, and keep recent-activity rows attached to the play they describe rather than to their position in the list.
@@ -16,14 +31,14 @@
 - Move iOS Last.fm API credentials into first-launch onboarding and store them in the device Keychain instead of requiring compile-time secrets.
 - Support free Apple personal-team installation with a local-only default build that does not require CloudKit or push-notification entitlements.
 - Add the branded iOS app icon, keep onboarding active until Last.fm authorization completes, and prevent premature Music reconciliation from producing startup errors.
-- Apply the PresenceFM blue/cyan adaptive theme across iOS, support both Last.fm callback return and manual authorization completion, and verify iOS branding and simulator builds in CI.
+- Apply the blue/cyan adaptive theme across iOS, support both Last.fm callback return and manual authorization completion, and verify iOS branding and simulator builds in CI.
 - Recenter the iPhone app on live Last.fm history and recent scrobbles while Apple Music capture runs quietly, with pull-to-refresh, artwork, safer local-ledger recovery, and nonblocking passive-capture health.
 - Simplify the connected iPhone experience to one focused scrobble-history screen, removing internal capture and review tabs from the main interface.
 
 ## 1.1.0 - 2026-08-20
 
 - Add a source-built iPhone companion for evidence-based Apple Music scrobbling, durable offline queues, review of uncertain listens, and private CloudKit coordination with the Mac.
-- Share deterministic listen eligibility, evidence, merge, and submission rules between the macOS and iOS apps through `PresenceFMCore`.
+- Share deterministic listen eligibility, evidence, merge, and submission rules between the macOS and iOS apps through `AuraCore`.
 - Keep personal Last.fm credentials, Apple signing settings, bundle identifiers, and CloudKit containers in ignored local configuration, backed by repository secret scanning and build-time validation.
 
 - Improve Discord album-cover reliability by accepting exact song/artist catalog matches across single, EP, deluxe, and album metadata changes; retry transient catalog misses; preserve signed provider thumbnail URLs; and send supported image URLs directly to Discord without a third-party proxy.
@@ -31,7 +46,7 @@
 ### 1.1.0-beta.2 - 2026-08-20
 
 - Move the website and Discord platform-badge URLs to the canonical Vercel deployment.
-- Replace third-party demonstration cover art with owned PresenceFM artwork and fictional metadata.
+- Replace third-party demonstration cover art with owned Aura artwork and fictional metadata.
 - Add public contributor templates, dependency updates, pinned Actions, and repository security guidance.
 - Bound queue-capacity tests so CI validates hard limits without quadratic test runtimes.
 
@@ -59,7 +74,7 @@
 - Bound persistence-retention fetches and reuse decoded current artwork, reducing memory and CPU churn during long playback sessions.
 - Let users reorder playback-provider priority while retaining an actively playing source, and persist a repaired complete order across relaunches.
 - Add a metadata-free release-verification snapshot with environment, service-health, poll-latency, queue, history, diagnostics, health-history, and artwork-cache counts.
-- Add Shortcuts actions to start or end Private Mode, check privacy status, and open the PresenceFM dashboard, including verified App Intents package metadata.
+- Add Shortcuts actions to start or end Private Mode, check privacy status, and open the Aura dashboard, including verified App Intents package metadata.
 - Let rejected scrobbles be corrected and retried without changing their original listen time or duplicate protection.
 - Advance playback progress locally between provider polls, limit VoiceOver progress-value changes to 15-second intervals, and enforce a tested narrow dashboard minimum.
 - Add a credential-free Demo Mode with a one-command launch and dashboard controls that exercise the real playback, eligibility, and local-history pipeline while visibly pausing Discord and Last.fm publishing.
@@ -81,14 +96,14 @@
 - Add a copyable seven-day listening recap with listens, minutes, artists, favorites, platform, and busiest-day highlights.
 - Add Last.fm exclusion rules for artists, albums, title terms, and playback platforms while preserving local history and Discord sharing.
 - Add passphrase-protected AES-256-GCM backups for entitled iCloud Drive builds, with authenticated restore and clear capability errors.
-- Prepare a privacy-aware macOS WidgetKit extension and shared snapshot timeline; distribution remains gated on the PresenceFM app-group entitlement.
+- Prepare a privacy-aware macOS WidgetKit extension and shared snapshot timeline; distribution remains gated on the Aura app-group entitlement.
 
 ## 0.4.0 - 2026-07-12
 
 - Add deterministic multi-provider coordination, selectable playback providers, shared operational limits, and bounded local integration-health history.
 - Add explicit, versioned SwiftData migration with legacy-store copying, two physical rollback backups, failed-store preservation, non-crashing recovery, bounded diagnostics and scrobble queues, and surfaced persistence failures.
 - Add 7-, 30-, and 90-day comparisons, top tracks and albums, hourly listening, platform summaries, and a documented CSV v1 export.
-- Add validated, credential-free PresenceFM backup and transactional restore with automatic rollback backups.
+- Add validated, credential-free Aura backup and transactional restore with automatic rollback backups.
 - Improve onboarding, VoiceOver status summaries, and keyboard-accessible queue recovery actions.
 - Ship releases as a branded drag-to-Applications DMG.
 - Add Spotify desktop playback detection, YouTube Music playback through YTMDesktop 2's local Companion Server, and best-effort TIDAL playback through macOS Now Playing metadata.
@@ -123,7 +138,7 @@
 - Added conditional Developer ID signing and Apple notarization to tagged release builds.
 - Reduced song-change latency for the dashboard, Discord presence, and Last.fm now-playing updates.
 - Made artwork transitions clear stale covers immediately, retry Apple Music artwork, and fall back to Apple-hosted catalog artwork.
-- Added dynamic album artwork to Discord Rich Presence with the PresenceFM mark as an immediate fallback.
+- Added dynamic album artwork to Discord Rich Presence with the Aura mark as an immediate fallback.
 - Removed Keychain access entirely to eliminate password prompts in unsigned and ad-hoc signed builds; Last.fm credentials now live in an owner-only local file.
 - Made packaging fall back to ad-hoc signing when no Apple signing identity is available, so releases do not require a paid developer account.
 - Prevented overlapping queue drains from submitting the same Last.fm scrobble more than once.

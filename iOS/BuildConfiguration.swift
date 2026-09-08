@@ -8,9 +8,9 @@ struct CompanionBuildConfiguration: Sendable {
     static var current: CompanionBuildConfiguration {
         let info = Bundle.main.infoDictionary ?? [:]
         return CompanionBuildConfiguration(
-            apiKey: info["PresenceFMLastFMAPIKey"] as? String ?? "",
-            sharedSecret: info["PresenceFMLastFMSharedSecret"] as? String ?? "",
-            cloudContainerIdentifier: (info["PresenceFMCloudContainer"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            apiKey: info["AuraLastFMAPIKey"] as? String ?? "",
+            sharedSecret: info["AuraLastFMSharedSecret"] as? String ?? "",
+            cloudContainerIdentifier: (info["AuraCloudContainer"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 

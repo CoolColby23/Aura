@@ -1,10 +1,10 @@
 name: Suggestion
-description: Suggest an improvement or new capability for PresenceFM
+description: Suggest an improvement or new capability for Aura
 labels: ["Enhancement"]
 body:
   - type: markdown
     attributes:
-      value: Thanks for helping make PresenceFM better. Please describe the outcome you want rather than only a particular implementation.
+      value: Thanks for helping make Aura better. Please describe the outcome you want rather than only a particular implementation.
   - type: textarea
     id: problem
     attributes:
@@ -16,7 +16,7 @@ body:
     id: suggestion
     attributes:
       label: Suggested experience
-      description: What would you like PresenceFM to do?
+      description: What would you like Aura to do?
     validations:
       required: true
   - type: dropdown

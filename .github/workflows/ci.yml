@@ -28,12 +28,14 @@ jobs:
         if: github.event_name == 'pull_request'
       - name: Scan tracked files for credentials
         run: ./scripts/scan-repository-secrets.sh
-      - name: Verify formatting of new Swift files
+      - name: Verify formatting of changed Swift files
         run: ./scripts/verify-swift-format.sh
       - name: Test
         run: swift test --enable-code-coverage
       - name: Verify iOS companion
         run: ./scripts/verify-ios-companion.sh
+      - name: Verify widget extension source
+        run: ./scripts/verify-widget-source.sh
       - name: Report code coverage
         run: |
           PROFILE="$(find .build -name default.profdata -print -quit)"
@@ -56,15 +58,15 @@ jobs:
           xcode-version: "26.0"
       - name: Build and package
         env:
-          PRESENCEFM_BUILD_NUMBER: ${{ github.run_number }}
-          PRESENCEFM_SIGNING_IDENTITY: "-"
+          AURA_BUILD_NUMBER: ${{ github.run_number }}
+          AURA_SIGNING_IDENTITY: "-"
         run: ./scripts/package-app.sh
       - name: Verify app bundle
         env:
-          PRESENCEFM_BUILD_NUMBER: ${{ github.run_number }}
+          AURA_BUILD_NUMBER: ${{ github.run_number }}
         run: ./scripts/verify-package.sh
       - name: Create and verify DMG
         run: |
           VERSION="$(<VERSION)"
           ./scripts/create-dmg.sh "$VERSION"
-          hdiutil verify "PresenceFM-$VERSION.dmg"
+          hdiutil verify "Aura-$VERSION.dmg"

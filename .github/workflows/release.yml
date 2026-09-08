@@ -46,29 +46,29 @@ jobs:
 
       - name: Package app
         env:
-          PRESENCEFM_VERSION: ${{ steps.meta.outputs.version }}
-          PRESENCEFM_BUILD_NUMBER: ${{ github.run_number }}
-          PRESENCEFM_SIGNING_IDENTITY: "-"
+          AURA_VERSION: ${{ steps.meta.outputs.version }}
+          AURA_BUILD_NUMBER: ${{ github.run_number }}
+          AURA_SIGNING_IDENTITY: "-"
         run: ./scripts/package-app.sh
 
       - name: Verify app bundle
         env:
-          PRESENCEFM_VERSION: ${{ steps.meta.outputs.version }}
-          PRESENCEFM_BUILD_NUMBER: ${{ github.run_number }}
+          AURA_VERSION: ${{ steps.meta.outputs.version }}
+          AURA_BUILD_NUMBER: ${{ github.run_number }}
         run: ./scripts/verify-package.sh
 
       - name: Create DMG
         env:
-          PRESENCEFM_VERSION: ${{ steps.meta.outputs.version }}
-        run: ./scripts/create-dmg.sh "${PRESENCEFM_VERSION}"
+          AURA_VERSION: ${{ steps.meta.outputs.version }}
+        run: ./scripts/create-dmg.sh "${AURA_VERSION}"
 
       - name: Create checksum
         env:
-          PRESENCEFM_VERSION: ${{ steps.meta.outputs.version }}
+          AURA_VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          shasum -a 256 "PresenceFM-${PRESENCEFM_VERSION}.dmg" > "PresenceFM-${PRESENCEFM_VERSION}.sha256"
-          hdiutil verify "PresenceFM-${PRESENCEFM_VERSION}.dmg"
-          shasum -a 256 -c "PresenceFM-${PRESENCEFM_VERSION}.sha256"
+          shasum -a 256 "Aura-${AURA_VERSION}.dmg" > "Aura-${AURA_VERSION}.sha256"
+          hdiutil verify "Aura-${AURA_VERSION}.dmg"
+          shasum -a 256 -c "Aura-${AURA_VERSION}.sha256"
 
       - name: Generate signed update feed
         if: steps.meta.outputs.is_prerelease != 'true'
@@ -79,15 +79,36 @@ jobs:
           APPCAST_TOOL="$(find .build/artifacts .build/checkouts -type f -name generate_appcast -perm +111 -print -quit 2>/dev/null)"
           test -x "$APPCAST_TOOL"
           mkdir appcast
-          cp PresenceFM-*.dmg appcast/
+          cp Aura-*.dmg appcast/
           printf '%s' "$SPARKLE_PRIVATE_KEY" | "$APPCAST_TOOL" \
             --ed-key-file - \
-            --download-url-prefix "https://github.com/CoolColby23/PresenceFM/releases/download/${GITHUB_REF_NAME}/" \
+            --download-url-prefix "https://github.com/CoolColby23/Aura/releases/download/${GITHUB_REF_NAME}/" \
             --link "https://presence-fm.vercel.app/" \
             --maximum-versions 1 \
             -o appcast/appcast.xml \
             appcast
           cp appcast/appcast.xml ./appcast.xml
+
+      - name: Verify the update feed is signed
+        if: steps.meta.outputs.is_prerelease != 'true'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          # generate_appcast only signs when the app's SUPublicEDKey matches the
+          # private key it was given. On a mismatch it prints a warning, emits an
+          # UNSIGNED enclosure, and still exits 0 -- which would ship an update
+          # Sparkle refuses to install. Fail the release instead.
+          grep -q 'sparkle:edSignature=' appcast.xml || {
+            echo "::error::appcast.xml has no sparkle:edSignature." >&2
+            echo "SPARKLE_PRIVATE_KEY does not match SUPublicEDKey in scripts/package-app.sh." >&2
+            cat appcast.xml >&2
+            exit 1
+          }
+          grep -q "<sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>" appcast.xml \
+            || { echo "::error::appcast.xml does not advertise ${VERSION}" >&2; cat appcast.xml >&2; exit 1; }
+          grep -q "releases/download/${GITHUB_REF_NAME}/Aura-${VERSION}.dmg" appcast.xml \
+            || { echo "::error::appcast enclosure URL does not point at this release's DMG" >&2; cat appcast.xml >&2; exit 1; }
+          echo "Update feed is signed and points at Aura-${VERSION}.dmg."
 
       - name: Prepare release notes
         env:
@@ -96,7 +117,7 @@ jobs:
         run: |
           if [[ "$IS_PRERELEASE" == "true" ]]; then
             printf '%s\n' \
-              "## PresenceFM ${VERSION} (pre-release)" \
+              "## Aura ${VERSION} (pre-release)" \
               "" \
               "This is a **pre-release** build for testing. It is not marked as Latest and does not update the production Sparkle appcast." \
               "" \
@@ -106,7 +127,7 @@ jobs:
               > release-body.md
           else
             printf '%s\n' \
-              "## PresenceFM ${VERSION}" \
+              "## Aura ${VERSION}" \
               "" \
               "Production release. In-app updates use the signed \`appcast.xml\` attached to this release." \
               "" \
@@ -123,6 +144,6 @@ jobs:
           body_path: release-body.md
           fail_on_unmatched_files: false
           files: |
-            PresenceFM-*.dmg
-            PresenceFM-*.sha256
+            Aura-*.dmg
+            Aura-*.sha256
             appcast.xml

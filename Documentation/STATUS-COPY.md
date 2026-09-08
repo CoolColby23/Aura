@@ -1,6 +1,6 @@
 # Integration Status and Recovery Language
 
-PresenceFM uses one status vocabulary everywhere: menu bar, dashboard, settings,
+Aura uses one status vocabulary everywhere: menu bar, dashboard, settings,
 notifications, diagnostics, and exported support text. `ServiceStatus` is the
 source of truth for labels; recovery button titles come from `IntegrationID`.
 
@@ -47,7 +47,7 @@ Integration status answers "is Last.fm reachable?". Scrobble capture status
 answers "what is happening to the song playing right now?". The two are
 separate vocabularies and must not be mixed.
 
-`CaptureStatusPresentation` in `PresenceFMCore` is the source of truth for
+`CaptureStatusPresentation` in `AuraCore` is the source of truth for
 capture wording, symbols, and tone. Both apps read `status.title`,
 `status.symbol`, and `action.buttonTitle` from it; each app maps only
 `status.tone` onto its own palette. Neither app may restate these in a local

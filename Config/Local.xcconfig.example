@@ -1,7 +1,7 @@
 // Copy to Local.xcconfig. Never commit that file.
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
-PRESENCEFM_MAC_BUNDLE_ID = com.example.PresenceFM.mac
-PRESENCEFM_IOS_BUNDLE_ID = com.example.PresenceFM.ios
+AURA_MAC_BUNDLE_ID = com.example.Aura.mac
+AURA_IOS_BUNDLE_ID = com.example.Aura.ios
 // Optional paid-program capability. Leave blank for a local-only personal-team build.
-PRESENCEFM_ICLOUD_CONTAINER =
-PRESENCEFM_REQUIRE_LOCAL_CONFIG = YES
+AURA_ICLOUD_CONTAINER =
+AURA_REQUIRE_LOCAL_CONFIG = YES

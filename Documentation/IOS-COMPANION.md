@@ -22,7 +22,7 @@ Never use silent audio, location, or unrelated background modes to prolong execu
 
 CloudKit coordination is optional and is not enabled in the default personal-team build. A free Apple ID can install and use the local queue and Last.fm submission path without it.
 
-The app creates a `PresenceFM` custom zone in the configured private database. During development, run both apps once to create `PresenceAccount`, `Listen`, `Evidence`, `Device`, `SyncCursor`, and `SubmissionGate` record types. Inspect them in CloudKit Console before physical two-device testing. The database contains evidence and coordination state, never Last.fm keys or session tokens.
+The app creates a `Aura` custom zone in the configured private database. During development, run both apps once to create `PresenceAccount`, `Listen`, `Evidence`, `Device`, `SyncCursor`, and `SubmissionGate` record types. Inspect them in CloudKit Console before physical two-device testing. The database contains evidence and coordination state, never Last.fm keys or session tokens.
 
 ## Physical-device checklist
 
@@ -31,7 +31,7 @@ Record observed, reconciled, uncertain, missed, and duplicate counts for foregro
 The iPhone home screen now reports detecting, progressing, queued, submitted,
 excluded, private, and needs-attention states through the same presentation
 contract used by the Mac app. Titles, symbols, tone, and recovery button copy
-come from `CaptureStatusPresentation` in `PresenceFMCore`; see
+come from `CaptureStatusPresentation` in `AuraCore`; see
 [STATUS-COPY.md](STATUS-COPY.md) for the vocabulary and the rule against
 restating it in either app's view layer. Validate that every blocking state
 offers one working recovery action and that locked, suspended, and force-quit
@@ -49,7 +49,7 @@ only the history already paged in from Last.fm, so the no-match state tells the
 user to pull to refresh for more; confirm the match count in the section header
 reflects that.
 
-Historical reconciliation is user-confirmed. PresenceFM follows every page
+Historical reconciliation is user-confirmed. Aura follows every page
 available from MusicKit's recently-played songs response and places new
 candidates in **Choose Past Plays**. Nothing in that inbox is submitted until
 the user selects individual songs or uses **Select All** and taps the scrobble

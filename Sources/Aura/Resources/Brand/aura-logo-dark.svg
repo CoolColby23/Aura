@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 244 80" fill="none">
+  <defs>
+    <linearGradient id="aura" x1="18" y1="16" x2="62" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFC49B"/>
+      <stop offset=".34" stop-color="#FF9AA8"/>
+      <stop offset=".7" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#5B5BF5"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.6"/>
+    </filter>
+  </defs>
+  <circle cx="40" cy="40" r="24" fill="none" stroke="url(#aura)" stroke-width="8.5" opacity=".45" filter="url(#glow)"/>
+  <circle cx="40" cy="40" r="24" fill="none" stroke="url(#aura)" stroke-width="6"/>
+  <circle cx="40" cy="40" r="5.75" fill="url(#aura)"/>
+  <text x="80" y="45" fill="#F7F6FB" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif" font-size="34" font-weight="700" letter-spacing="-1">Aura</text>
+  <text x="81.5" y="61" fill="#A9A7BC" font-family="-apple-system,BlinkMacSystemFont,'SF Pro Text',sans-serif" font-size="8.5" font-weight="600" letter-spacing="1.05">NOW PLAYING, EVERYWHERE</text>
+</svg>

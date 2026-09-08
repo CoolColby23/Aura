@@ -1,6 +1,6 @@
+import AuraCore
 import AuthenticationServices
 import Foundation
-import PresenceFMCore
 import UIKit
 
 enum CompanionLastFMError: LocalizedError {
@@ -9,7 +9,7 @@ enum CompanionLastFMError: LocalizedError {
     case rejected(String)
     var errorDescription: String? {
         switch self {
-        case .configuration: "Enter your Last.fm API credentials in PresenceFM."
+        case .configuration: "Enter your Last.fm API credentials in Aura."
         case .unauthorized: "Connect Last.fm in Settings."
         case .invalidResponse: "Last.fm returned an invalid response."
         case .api(let message), .rejected(let message): message
@@ -56,28 +56,28 @@ actor CompanionLastFMClient {
             .init(name: "cb", value: Self.callbackURL),
         ]
         guard let url = components.url else { throw CompanionLastFMError.invalidResponse }
-        UserDefaults.standard.set(token, forKey: "PresenceFMLastFMAuthToken")
+        UserDefaults.standard.set(token, forKey: "AuraLastFMAuthToken")
         return url
     }
 
     func acceptCallback(_ url: URL) throws {
-        guard url.scheme?.lowercased() == "presencefm",
+        guard url.scheme?.lowercased() == "aura",
             url.host?.lowercased() == "lastfm-auth"
         else { throw CompanionLastFMError.invalidResponse }
         if let token = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
             .first(where: { $0.name == "token" })?.value,
             !token.isEmpty
         {
-            UserDefaults.standard.set(token, forKey: "PresenceFMLastFMAuthToken")
+            UserDefaults.standard.set(token, forKey: "AuraLastFMAuthToken")
         }
     }
 
     func hasPendingAuthorization() -> Bool {
-        UserDefaults.standard.string(forKey: "PresenceFMLastFMAuthToken")?.isEmpty == false
+        UserDefaults.standard.string(forKey: "AuraLastFMAuthToken")?.isEmpty == false
     }
 
     func completeAuthorization() async throws -> String {
-        guard let token = UserDefaults.standard.string(forKey: "PresenceFMLastFMAuthToken") else { throw CompanionLastFMError.unauthorized }
+        guard let token = UserDefaults.standard.string(forKey: "AuraLastFMAuthToken") else { throw CompanionLastFMError.unauthorized }
         let response = try await call(method: "auth.getSession", parameters: ["token": token], sessionKey: nil)
         guard let sessionObject = response["session"] as? [String: Any],
             let key = sessionObject["key"] as? String, let username = sessionObject["name"] as? String
@@ -85,52 +85,66 @@ actor CompanionLastFMClient {
             throw CompanionLastFMError.invalidResponse
         }
         try await keychain.set(key, for: .lastFMSession); try await keychain.set(username, for: .lastFMUsername)
-        UserDefaults.standard.removeObject(forKey: "PresenceFMLastFMAuthToken")
+        UserDefaults.standard.removeObject(forKey: "AuraLastFMAuthToken")
         return username
     }
 
     func username() async -> String? { await keychain.value(for: .lastFMUsername) }
 
-    func recentTracks(username: String, limit: Int = 200) async throws -> [CompanionLastFMTrack] {
-        let response = try await call(
-            method: "user.getRecentTracks",
-            parameters: ["user": username, "limit": String(limit), "extended": "0"],
-            sessionKey: nil)
-        guard let recent = response["recenttracks"] as? [String: Any] else {
-            throw CompanionLastFMError.invalidResponse
+    func recentTracks(username: String, limit: Int = 200, maxPages: Int = 10) async throws -> [CompanionLastFMTrack] {
+        let limit = min(max(limit, 1), 200)
+        let maxPages = max(maxPages, 1)
+        var result: [CompanionLastFMTrack] = []
+        for page in 1...maxPages {
+            let response = try await call(
+                method: "user.getRecentTracks",
+                parameters: ["user": username, "limit": String(limit), "page": String(page), "extended": "0"],
+                sessionKey: nil)
+            guard let recent = response["recenttracks"] as? [String: Any] else {
+                throw CompanionLastFMError.invalidResponse
+            }
+            let rawTracks: [[String: Any]]
+            if let tracks = recent["track"] as? [[String: Any]] {
+                rawTracks = tracks
+            } else if let track = recent["track"] as? [String: Any] {
+                rawTracks = [track]
+            } else {
+                rawTracks = []
+            }
+            result.append(contentsOf: rawTracks.compactMap(Self.parseRecentTrack))
+            let attributes = recent["@attr"] as? [String: Any]
+            let totalPages =
+                (attributes?["totalPages"] as? String).flatMap(Int.init)
+                ?? (attributes?["totalPages"] as? NSNumber)?.intValue
+            if rawTracks.count < limit || page >= (totalPages ?? page + 1) { break }
         }
-        let rawTracks: [[String: Any]]
-        if let tracks = recent["track"] as? [[String: Any]] {
-            rawTracks = tracks
-        } else if let track = recent["track"] as? [String: Any] {
-            rawTracks = [track]
-        } else {
-            rawTracks = []
-        }
-        return rawTracks.compactMap { track -> CompanionLastFMTrack? in
-            guard let title = track["name"] as? String,
-                let artistObject = track["artist"] as? [String: Any],
-                let artist = artistObject["#text"] as? String
-            else { return nil }
-            let attributes = track["@attr"] as? [String: Any]
-            let dateObject = track["date"] as? [String: Any]
-            let timestamp = (dateObject?["uts"] as? String).flatMap(TimeInterval.init)
-            let images = track["image"] as? [[String: Any]]
-            let artwork = images?.reversed().compactMap { image -> URL? in
-                guard let raw = image["#text"] as? String, !raw.isEmpty else { return nil }
-                return URL(string: raw)
-            }.first
-            let album = (track["album"] as? [String: Any])?["#text"] as? String
-            return CompanionLastFMTrack(
-                title: title, artist: artist, album: album?.isEmpty == false ? album : nil,
-                artworkURL: artwork, playedAt: timestamp.map(Date.init(timeIntervalSince1970:)),
-                isNowPlaying: attributes?["nowplaying"] as? String == "true")
-        }
+        var seen = Set<String>()
+        return result.filter { seen.insert($0.id).inserted }
+    }
+
+    private static func parseRecentTrack(_ track: [String: Any]) -> CompanionLastFMTrack? {
+        guard let title = track["name"] as? String,
+            let artistObject = track["artist"] as? [String: Any],
+            let artist = artistObject["#text"] as? String
+        else { return nil }
+        let attributes = track["@attr"] as? [String: Any]
+        let dateObject = track["date"] as? [String: Any]
+        let timestamp = (dateObject?["uts"] as? String).flatMap(TimeInterval.init)
+        let images = track["image"] as? [[String: Any]]
+        let artwork = images?.reversed().compactMap { image -> URL? in
+            guard let raw = image["#text"] as? String, !raw.isEmpty else { return nil }
+            return URL(string: raw)
+        }.first
+        let album = (track["album"] as? [String: Any])?["#text"] as? String
+        return CompanionLastFMTrack(
+            title: title, artist: artist, album: album?.isEmpty == false ? album : nil,
+            artworkURL: artwork, playedAt: timestamp.map(Date.init(timeIntervalSince1970:)),
+            isNowPlaying: attributes?["nowplaying"] as? String == "true")
     }
 
     func disconnect() async throws {
         try await keychain.set(nil, for: .lastFMSession); try await keychain.set(nil, for: .lastFMUsername)
-        UserDefaults.standard.removeObject(forKey: "PresenceFMLastFMAuthToken")
+        UserDefaults.standard.removeObject(forKey: "AuraLastFMAuthToken")
     }
 
     func updateNowPlaying(_ metadata: ScrobbleMetadata) async throws {
@@ -155,20 +169,23 @@ actor CompanionLastFMClient {
             let attributes = scrobbles["@attr"] as? [String: Any]
         else { throw CompanionLastFMError.invalidResponse }
         guard String(describing: attributes["accepted"] ?? "0") == "1" else {
-            let entry = (scrobbles["scrobble"] as? [String: Any])
+            let entry =
+                (scrobbles["scrobble"] as? [String: Any])
                 ?? (scrobbles["scrobble"] as? [[String: Any]])?.first
-            let ignored = (entry?["ignoredMessage"] as? [String: Any])
+            let ignored =
+                (entry?["ignoredMessage"] as? [String: Any])
                 ?? (entry?["ignoredmessage"] as? [String: Any])
             let reason = (ignored?["#text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let code = String(describing: ignored?["code"] ?? "")
-            let fallback: String = switch code {
-            case "1": "Last.fm filtered the artist."
-            case "2": "Last.fm filtered the track."
-            case "3": "This play is too old for Last.fm to accept."
-            case "4": "This play time is too far in the future."
-            case "5": "The Last.fm daily scrobble limit was reached."
-            default: "Last.fm did not accept the scrobble."
-            }
+            let fallback: String =
+                switch code {
+                case "1": "Last.fm filtered the artist."
+                case "2": "Last.fm filtered the track."
+                case "3": "This play is too old for Last.fm to accept."
+                case "4": "This play time is too far in the future."
+                case "5": "The Last.fm daily scrobble limit was reached."
+                default: "Last.fm did not accept the scrobble."
+                }
             let message = reason?.isEmpty == false ? reason! : fallback
             // Codes 1-3 describe this play itself: a filtered artist or track, or
             // a timestamp already outside Last.fm's accepted window. Resubmitting
@@ -187,9 +204,14 @@ actor CompanionLastFMClient {
 
     private func call(method: String, parameters: [String: String], sessionKey: String?) async throws -> [String: Any] {
         guard credentials.isConfigured else { throw CompanionLastFMError.configuration }
-        let delay = earliestRequest.timeIntervalSinceNow
+        // Reserve this request's slot before suspending. Actor methods are
+        // reentrant across `await`, so updating the deadline after sleeping can
+        // let several callers wake and hit Last.fm at the same time.
+        let now = Date()
+        let requestAt = max(now, earliestRequest)
+        earliestRequest = requestAt.addingTimeInterval(0.35)
+        let delay = requestAt.timeIntervalSince(now)
         if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
-        earliestRequest = Date().addingTimeInterval(0.35)
         let values = LastFMRequestBuilder.values(
             method: method, parameters: parameters, apiKey: credentials.apiKey, secret: credentials.sharedSecret, sessionKey: sessionKey)
         var request = URLRequest(url: URL(string: "https://ws.audioscrobbler.com/2.0/")!)
@@ -197,10 +219,20 @@ actor CompanionLastFMClient {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = LastFMRequestBuilder.body(values)
         let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+        guard let http = response as? HTTPURLResponse else { throw CompanionLastFMError.invalidResponse }
+        if http.statusCode == 429 {
+            let retryAfter = TimeInterval(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 30
+            earliestRequest = Date().addingTimeInterval(max(5, retryAfter))
+            throw CompanionLastFMError.api("Last.fm is busy. Aura will retry automatically.")
+        }
+        guard (200...299).contains(http.statusCode),
             let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { throw CompanionLastFMError.invalidResponse }
-        if let message = object["message"] as? String { throw CompanionLastFMError.api(message) }
+        if let message = object["message"] as? String {
+            let code = (object["error"] as? Int) ?? (object["error"] as? String).flatMap(Int.init)
+            if code == 29 { earliestRequest = Date().addingTimeInterval(30) }
+            throw CompanionLastFMError.api(message)
+        }
         return object
     }
 }

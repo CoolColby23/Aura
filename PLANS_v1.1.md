@@ -1,4 +1,4 @@
-# PresenceFM — v1.1 Plans
+# Aura — v1.1 Plans
 
 This file captures the prioritized plans and implementation steps for v1.1. It mirrors the TODOs tracked in the task list so plans are available locally in the repository.
 

@@ -7,67 +7,70 @@ cd "$ROOT"
 swift build -c release
 BIN_DIR="$(swift build -c release --show-bin-path)"
 
-VERSION="${PRESENCEFM_VERSION:-$(<"$ROOT/VERSION")}"
-BUILD_NUMBER="${PRESENCEFM_BUILD_NUMBER:-1}"
-DISCORD_APPLICATION_ID="${PRESENCEFM_DISCORD_APPLICATION_ID:-1525555974390153346}"
+VERSION="${AURA_VERSION:-$(<"$ROOT/VERSION")}"
+BUILD_NUMBER="${AURA_BUILD_NUMBER:-1}"
+DISCORD_APPLICATION_ID="${AURA_DISCORD_APPLICATION_ID:-1525555974390153346}"
 
-APP="$ROOT/PresenceFM.app"
+APP="$ROOT/Aura.app"
 CONTENTS="$APP/Contents"
 rm -rf "$APP"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources" "$CONTENTS/Frameworks"
-cp "$BIN_DIR/PresenceFM" "$CONTENTS/MacOS/PresenceFM"
+cp "$BIN_DIR/Aura" "$CONTENTS/MacOS/Aura"
 cp -R "$BIN_DIR/Sparkle.framework" "$CONTENTS/Frameworks/Sparkle.framework"
 # SwiftPM may already embed this rpath; only add it when missing.
-if ! otool -l "$CONTENTS/MacOS/PresenceFM" | grep -q '@executable_path/../Frameworks'; then
-  install_name_tool -add_rpath "@executable_path/../Frameworks" "$CONTENTS/MacOS/PresenceFM"
+if ! otool -l "$CONTENTS/MacOS/Aura" | grep -q '@executable_path/../Frameworks'; then
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "$CONTENTS/MacOS/Aura"
 fi
-cp "$ROOT/brand/PresenceFM.icns" "$CONTENTS/Resources/PresenceFM.icns"
-RESOURCE_BUNDLE="$BIN_DIR/PresenceFM_PresenceFM.bundle"
+cp "$ROOT/brand/Aura.icns" "$CONTENTS/Resources/Aura.icns"
+RESOURCE_BUNDLE="$BIN_DIR/Aura_Aura.bundle"
 [[ -n "$RESOURCE_BUNDLE" && -d "$RESOURCE_BUNDLE" ]] || {
   echo "SwiftPM resource bundle was not produced" >&2
   exit 1
 }
-cp -R "$RESOURCE_BUNDLE" "$CONTENTS/Resources/PresenceFM_PresenceFM.bundle"
-PACKAGED_RESOURCE_BUNDLE="$CONTENTS/Resources/PresenceFM_PresenceFM.bundle"
+cp -R "$RESOURCE_BUNDLE" "$CONTENTS/Resources/Aura_Aura.bundle"
+PACKAGED_RESOURCE_BUNDLE="$CONTENTS/Resources/Aura_Aura.bundle"
 # Xcode 26's SwiftPM command-line build can emit a flat resource directory
 # without bundle metadata. `Bundle.module` cannot open that directory and traps
 # during launch. Preserve the flat resource layout while adding the minimum
 # metadata Foundation needs to recognize it as a bundle.
 if [[ ! -f "$PACKAGED_RESOURCE_BUNDLE/Contents/Info.plist" && ! -f "$PACKAGED_RESOURCE_BUNDLE/Info.plist" ]]; then
   plutil -create xml1 "$PACKAGED_RESOURCE_BUNDLE/Info.plist"
-  plutil -insert CFBundleIdentifier -string fm.presence.PresenceFM.resources "$PACKAGED_RESOURCE_BUNDLE/Info.plist"
-  plutil -insert CFBundleName -string PresenceFM_PresenceFM "$PACKAGED_RESOURCE_BUNDLE/Info.plist"
+  plutil -insert CFBundleIdentifier -string fm.aura.Aura.resources "$PACKAGED_RESOURCE_BUNDLE/Info.plist"
+  plutil -insert CFBundleName -string Aura_Aura "$PACKAGED_RESOURCE_BUNDLE/Info.plist"
   plutil -insert CFBundlePackageType -string BNDL "$PACKAGED_RESOURCE_BUNDLE/Info.plist"
   plutil -insert CFBundleInfoDictionaryVersion -string 6.0 "$PACKAGED_RESOURCE_BUNDLE/Info.plist"
 fi
 "$ROOT/scripts/generate-app-intents-metadata.sh" "$CONTENTS/Resources"
 
 plutil -create xml1 "$CONTENTS/Info.plist"
-plutil -insert CFBundleName -string PresenceFM "$CONTENTS/Info.plist"
-plutil -insert CFBundleDisplayName -string PresenceFM "$CONTENTS/Info.plist"
-plutil -insert CFBundleIdentifier -string fm.presence.PresenceFM "$CONTENTS/Info.plist"
-plutil -insert CFBundleExecutable -string PresenceFM "$CONTENTS/Info.plist"
+plutil -insert CFBundleName -string Aura "$CONTENTS/Info.plist"
+plutil -insert CFBundleDisplayName -string Aura "$CONTENTS/Info.plist"
+plutil -insert CFBundleIdentifier -string fm.aura.Aura "$CONTENTS/Info.plist"
+plutil -insert CFBundleExecutable -string Aura "$CONTENTS/Info.plist"
 plutil -insert CFBundlePackageType -string APPL "$CONTENTS/Info.plist"
-plutil -insert CFBundleIconFile -string PresenceFM "$CONTENTS/Info.plist"
+plutil -insert CFBundleIconFile -string Aura "$CONTENTS/Info.plist"
 plutil -insert CFBundleShortVersionString -string "$VERSION" "$CONTENTS/Info.plist"
 plutil -insert CFBundleVersion -string "$BUILD_NUMBER" "$CONTENTS/Info.plist"
 plutil -insert LSMinimumSystemVersion -string 15.0 "$CONTENTS/Info.plist"
-plutil -insert NSAppleEventsUsageDescription -string "PresenceFM reads the track currently playing in Apple Music. It does not control playback or modify your library." "$CONTENTS/Info.plist"
-plutil -insert NSHumanReadableCopyright -string "PresenceFM contributors" "$CONTENTS/Info.plist"
-plutil -insert SUFeedURL -string "https://github.com/CoolColby23/PresenceFM/releases/latest/download/appcast.xml" "$CONTENTS/Info.plist"
+plutil -insert NSAppleEventsUsageDescription -string "Aura reads the track currently playing in Apple Music. It does not control playback or modify your library." "$CONTENTS/Info.plist"
+plutil -insert NSHumanReadableCopyright -string "Aura contributors" "$CONTENTS/Info.plist"
+plutil -insert SUFeedURL -string "https://github.com/CoolColby23/Aura/releases/latest/download/appcast.xml" "$CONTENTS/Info.plist"
 plutil -insert SUPublicEDKey -string "EBdOJMgejwIvsRqKDYymh1sKKNyr/e+W3XpeJyJ/cvE=" "$CONTENTS/Info.plist"
 plutil -insert SUEnableAutomaticChecks -bool true "$CONTENTS/Info.plist"
 plutil -insert SUAllowsAutomaticUpdates -bool true "$CONTENTS/Info.plist"
 
-plutil -insert PRESENCEFM_DISCORD_APPLICATION_ID -string "$DISCORD_APPLICATION_ID" "$CONTENTS/Info.plist"
+plutil -insert AURA_DISCORD_APPLICATION_ID -string "$DISCORD_APPLICATION_ID" "$CONTENTS/Info.plist"
 
-if [[ "${PRESENCEFM_SKIP_SIGNING:-0}" != "1" ]]; then
-  SIGNING_IDENTITY="${PRESENCEFM_SIGNING_IDENTITY:-}"
+if [[ "${AURA_SKIP_SIGNING:-0}" != "1" ]]; then
+  SIGNING_IDENTITY="${AURA_SIGNING_IDENTITY:-}"
   if [[ -z "$SIGNING_IDENTITY" ]]; then
-    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' | head -n 1 || true)"
+    # Use the identity hash rather than its display name. Keychains can contain
+    # renewed certificates with identical names, which makes `codesign -s NAME`
+    # ambiguous even though either certificate is otherwise valid.
+    SIGNING_IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null | awk '/"Apple Development:/ { print $2; exit }' || true)"
   fi
 
-  ENTITLEMENTS_FILE="$(mktemp -t presencefm-entitlements).plist"
+  ENTITLEMENTS_FILE="$(mktemp -t aura-entitlements).plist"
   cp "$ROOT/Distribution.entitlements" "$ENTITLEMENTS_FILE"
   trap 'rm -f "$ENTITLEMENTS_FILE"' EXIT
 
@@ -81,9 +84,9 @@ if [[ "${PRESENCEFM_SKIP_SIGNING:-0}" != "1" ]]; then
     echo "Ad-hoc signed (no paid Apple Developer account required)"
   else
     TEAM_IDENTIFIER="$(security find-certificate -c "$SIGNING_IDENTITY" -p 2>/dev/null | openssl x509 -noout -subject -nameopt RFC2253 2>/dev/null | sed -n 's/.*OU=\([^,]*\).*/\1/p' | head -n 1 || true)"
-    if [[ -n "$TEAM_IDENTIFIER" && "${PRESENCEFM_ENABLE_ICLOUD_SYNC:-0}" == "1" ]]; then
+    if [[ -n "$TEAM_IDENTIFIER" && "${AURA_ENABLE_ICLOUD_SYNC:-0}" == "1" ]]; then
       /usr/libexec/PlistBuddy -c \
-        "Set :com.apple.developer.ubiquity-kvstore-identifier $TEAM_IDENTIFIER.fm.presence.PresenceFM" \
+        "Set :com.apple.developer.ubiquity-kvstore-identifier $TEAM_IDENTIFIER.fm.aura.Aura" \
         "$ENTITLEMENTS_FILE"
     else
       /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.ubiquity-kvstore-identifier" "$ENTITLEMENTS_FILE" 2>/dev/null || true
