@@ -34,6 +34,8 @@ jobs:
         run: swift test --enable-code-coverage
       - name: Verify iOS companion
         run: ./scripts/verify-ios-companion.sh
+      - name: Verify widget extension source
+        run: ./scripts/verify-widget-source.sh
       - name: Report code coverage
         run: |
           PROFILE="$(find .build -name default.profdata -print -quit)"

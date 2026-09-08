@@ -1,9 +1,10 @@
 # Aura design tokens
 
 These are the canonical values. They are mirrored in code by `BrandColors` /
-`BrandSpacing` / `BrandRadius` / `BrandTypography` in `Sources/Aura/Brand.swift` (macOS)
-and `AuraBrand` / `AuraSpacing` / `AuraRadius` in `iOS/CompanionTheme.swift`. Change them
-here first, then in both.
+`BrandSpacing` / `BrandRadius` / `BrandTypography` in `Sources/Aura/Brand.swift` (macOS),
+by `CompanionBrand` / `CompanionSpacing` / `CompanionRadius` in `iOS/CompanionTheme.swift`,
+and by `WidgetBrand` in `WidgetExtension/AuraWidget.swift`, which cannot import either
+app module. Change them here first, then in all three.
 
 ## Gradient
 
@@ -57,14 +58,23 @@ Hairline — used only where a material step is not possible
 
 ## Radius
 
-All rounding is continuous (squircle), never circular. Nothing interactive is squarer
-than `radius-sm`.
+All rounding is continuous (squircle), never circular — and circular is the default for
+`RoundedRectangle`, `.rect(cornerRadius:)`, and `border-radius`, so continuous has to be
+asked for at every call site. Nothing card-sized or larger is squarer than `radius-sm`.
 
+- `radius-xxs`: 6 — key caps, appearance miniatures
+- `radius-xs`: 8 — chips, selection pills, artwork thumbnails, inline previews
 - `radius-sm`: 12
 - `radius-md`: 18
 - `radius-lg`: 26
 - `radius-xl`: 34
 - `radius-2xl`: 44
+- `radius-tile`: 28% of the tile's own edge — the tinted square behind a symbol, so
+  tiles of different sizes read as one shape
+
+Album art in the iPhone app's Last.fm views is the one deliberate exception at 3, which
+matches Last.fm's own near-square grid. Artist art is a true circle, never a rounded
+rectangle at half its frame.
 
 ## Type
 

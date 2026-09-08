@@ -137,7 +137,7 @@ struct SettingsView: View {
                         // system accent so it stays legible against `onPrimaryColor`.
                         .background(
                             selection.wrappedValue == category ? AnyShapeStyle(theme.primaryColor.gradient) : AnyShapeStyle(Color.clear),
-                            in: .rect(cornerRadius: 8)
+                            in: .rect(cornerRadius: BrandRadius.xs, style: .continuous)
                         )
                         .contentShape(.rect)
                     }

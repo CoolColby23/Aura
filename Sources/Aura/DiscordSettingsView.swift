@@ -205,7 +205,7 @@ private struct DiscordStatusPreview: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary, in: .rect(cornerRadius: 8))
+        .background(.quaternary, in: .rect(cornerRadius: BrandRadius.xs, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("discord.preview")
         .accessibilityLabel("Discord preview: \(activity) \(activityName), \(firstLine), \(secondLine), \(timer)")

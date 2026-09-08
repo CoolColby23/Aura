@@ -253,7 +253,7 @@ struct LastFMHomeView: View {
             } footer: {
                 if let issue = model.captureIssue {
                     Label(issue, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(CompanionBrand.warning)
                 }
             }
             Section {
@@ -289,7 +289,7 @@ struct CompanionReadinessView: View {
     var body: some View {
         VStack(spacing: CompanionSpacing.md) {
             HStack {
-                CompanionStatusPill(title: "Last.fm connected", symbol: "checkmark.circle.fill", tint: .green)
+                CompanionStatusPill(title: "Last.fm connected", symbol: "checkmark.circle.fill", tint: CompanionBrand.success)
                 Spacer()
             }
             CompanionCaptureStatusCard(model: model)
@@ -634,11 +634,11 @@ struct CompanionCaptureActivityView: View {
                     ForEach(model.reviewItems) { listen in
                         ListenRow(listen: listen)
                             .swipeActions(edge: .leading) {
-                                Button("Approve") { Task { await model.approve(listen) } }.tint(.green)
+                                Button("Approve") { Task { await model.approve(listen) } }.tint(CompanionBrand.success)
                             }
                             .swipeActions {
                                 Button("Dismiss", role: .destructive) { Task { await model.dismiss(listen) } }
-                                Button("Edit") { model.presentedEditor = listen }.tint(.blue)
+                                Button("Edit") { model.presentedEditor = listen }.tint(CompanionBrand.indigo)
                             }
                     }
                 }
@@ -654,11 +654,11 @@ struct CompanionCaptureActivityView: View {
 private extension CaptureStatusPresentation.Status {
     var tint: Color {
         switch tone {
-        case .positive: .green
+        case .positive: CompanionBrand.success
         case .active: CompanionBrand.indigo
-        case .paused: .orange
-        case .neutral: .secondary
-        case .critical: .red
+        case .paused: CompanionBrand.warning
+        case .neutral: CompanionBrand.neutral
+        case .critical: CompanionBrand.error
         }
     }
 }
@@ -768,7 +768,7 @@ struct CaptureHealthCard: View {
             LabeledContent("iCloud", value: model.cloudStatus)
             LabeledContent("Queued", value: String(model.history.filter { $0.state == .queued }.count))
             if model.snapshot.privateMode {
-                CompanionStatusPill(title: "Private Mode is active", symbol: "eye.slash.fill", tint: .orange)
+                CompanionStatusPill(title: "Private Mode is active", symbol: "eye.slash.fill", tint: CompanionBrand.warning)
             }
         }
         .font(.subheadline)
@@ -819,7 +819,7 @@ struct ReviewView: View {
                 ListenRow(listen: listen)
                     .swipeActions(edge: .leading) {
                         Button("Approve", systemImage: "checkmark") { Task { await model.approve(listen) } }
-                            .tint(.green)
+                            .tint(CompanionBrand.success)
                     }
                     .swipeActions {
                         Button("Dismiss", systemImage: "xmark", role: .destructive) { Task { await model.dismiss(listen) } }
@@ -868,7 +868,7 @@ struct ListenRow: View {
                 if let reason = listen.reviewReason {
                     Text(reason.rawValue.spaced)
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(CompanionBrand.warning)
                         .lineLimit(2)
                 }
             }
@@ -903,9 +903,9 @@ struct ListenRow: View {
 
     private var color: Color {
         switch listen.state {
-        case .submitted: .green
-        case .review: .orange
-        case .failed: .red
+        case .submitted: CompanionBrand.success
+        case .review: CompanionBrand.warning
+        case .failed: CompanionBrand.error
         default: CompanionBrand.indigo
         }
     }

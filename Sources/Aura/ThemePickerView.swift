@@ -2,6 +2,8 @@ import SwiftUI
 
 struct ThemePickerView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         @Bindable var preferences = model.preferences
@@ -15,7 +17,11 @@ struct ThemePickerView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            appearancePicker(selection: $preferences.appearanceMode)
+            appearancePicker(
+                selection: $preferences.appearanceMode,
+                light: AppTheme.find(preferences.lightThemeID),
+                dark: AppTheme.find(preferences.darkThemeID)
+            )
 
             Divider()
 
@@ -43,14 +49,14 @@ struct ThemePickerView: View {
         .accessibilityIdentifier("appearance.theme-picker")
     }
 
-    private func appearancePicker(selection: Binding<AppearanceMode>) -> some View {
+    private func appearancePicker(selection: Binding<AppearanceMode>, light: AppTheme, dark: AppTheme) -> some View {
         HStack(spacing: 10) {
             ForEach(AppearanceMode.allCases) { mode in
                 Button {
                     selection.wrappedValue = mode
                 } label: {
                     VStack(spacing: 8) {
-                        AppearanceMiniature(mode: mode)
+                        AppearanceMiniature(mode: mode, light: light, dark: dark)
                         Label(mode.title, systemImage: mode.symbol)
                             .font(.caption.weight(.semibold))
                     }
@@ -58,12 +64,12 @@ struct ThemePickerView: View {
                     .padding(10)
                     .background(
                         RoundedRectangle(cornerRadius: BrandRadius.md, style: .continuous)
-                            .fill(selection.wrappedValue == mode ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.035))
+                            .fill(selection.wrappedValue == mode ? theme.subtleAccent(for: colorScheme) : Color.primary.opacity(0.035))
                     )
                     .overlay {
                         RoundedRectangle(cornerRadius: BrandRadius.md, style: .continuous)
                             .strokeBorder(
-                                selection.wrappedValue == mode ? Color.accentColor : Color.primary.opacity(0.10),
+                                selection.wrappedValue == mode ? theme.readablePrimary(for: colorScheme) : Color.primary.opacity(0.10),
                                 lineWidth: selection.wrappedValue == mode ? 2 : 1)
                     }
                 }
@@ -74,27 +80,33 @@ struct ThemePickerView: View {
     }
 }
 
+/// Two half-window sketches showing the canvas and accent of the presets actually
+/// assigned to light and dark mode, so the appearance switch previews the result
+/// instead of a generic navy-and-system-accent window.
 private struct AppearanceMiniature: View {
     let mode: AppearanceMode
+    let light: AppTheme
+    let dark: AppTheme
 
     var body: some View {
         GeometryReader { proxy in
             HStack(spacing: 0) {
-                if mode != .dark { miniature(light: true).frame(width: mode == .system ? proxy.size.width / 2 : proxy.size.width) }
-                if mode != .light { miniature(light: false).frame(width: mode == .system ? proxy.size.width / 2 : proxy.size.width) }
+                if mode != .dark { miniature(theme: light, scheme: .light).frame(width: mode == .system ? proxy.size.width / 2 : proxy.size.width) }
+                if mode != .light { miniature(theme: dark, scheme: .dark).frame(width: mode == .system ? proxy.size.width / 2 : proxy.size.width) }
             }
-            .clipShape(.rect(cornerRadius: 7, style: .continuous))
+            .clipShape(.rect(cornerRadius: BrandRadius.xxs, style: .continuous))
         }
         .frame(height: 40)
     }
 
-    private func miniature(light: Bool) -> some View {
-        ZStack(alignment: .leading) {
-            (light ? Color.white : Color(red: 0.06, green: 0.07, blue: 0.11))
-            Rectangle().fill(light ? Color.black.opacity(0.07) : Color.white.opacity(0.08)).frame(width: 18)
+    private func miniature(theme: AppTheme, scheme: ColorScheme) -> some View {
+        let isLight = scheme == .light
+        return ZStack(alignment: .leading) {
+            theme.canvas(for: scheme)
+            Rectangle().fill(isLight ? Color.black.opacity(0.07) : Color.white.opacity(0.08)).frame(width: 18)
             VStack(alignment: .leading, spacing: 4) {
-                Capsule().fill(Color.accentColor).frame(width: 28, height: 4)
-                Capsule().fill(light ? Color.black.opacity(0.14) : Color.white.opacity(0.20)).frame(width: 42, height: 3)
+                Capsule().fill(theme.readablePrimary(for: scheme)).frame(width: 28, height: 4)
+                Capsule().fill(isLight ? Color.black.opacity(0.14) : Color.white.opacity(0.20)).frame(width: 42, height: 3)
             }
             .padding(.leading, 24)
         }
@@ -161,12 +173,12 @@ private struct ThemeOrb: View {
                     )
                     .frame(width: 38, height: 38)
                 if selected {
-                    Circle().strokeBorder(Color.accentColor, lineWidth: 2.5).frame(width: 44, height: 44)
+                    Circle().strokeBorder(theme.primaryColor, lineWidth: 2.5).frame(width: 44, height: 44)
                     Image(systemName: scheme == .light ? "sun.max.fill" : "moon.fill")
                         .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.onPrimaryColor)
                         .padding(4)
-                        .background(Color.accentColor, in: .circle)
+                        .background(theme.primaryColor, in: .circle)
                         .offset(x: 15, y: 15)
                 }
             }

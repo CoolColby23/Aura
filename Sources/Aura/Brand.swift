@@ -78,13 +78,26 @@ enum BrandSpacing {
     static let xxxl: CGFloat = 60
 }
 
-/// All rounding is continuous. Nothing interactive is squarer than `sm`.
+/// All rounding is continuous — never `.circular`, which is the default for
+/// `RoundedRectangle` and `.rect(cornerRadius:)` and so has to be asked for
+/// explicitly at every call site.
+///
+/// `xxs` and `xs` exist for the sub-chip details that would otherwise reach for a
+/// literal; nothing card-sized or larger is squarer than `sm`.
 enum BrandRadius {
+    static let xxs: CGFloat = 6
+    static let xs: CGFloat = 8
     static let sm: CGFloat = 12
     static let md: CGFloat = 18
     static let lg: CGFloat = 26
     static let xl: CGFloat = 34
     static let xxl: CGFloat = 44
+
+    /// Symbol tiles — the small tinted squares that front service cards, queue
+    /// rows, metrics, and command-palette results — hold a constant corner-to-edge
+    /// ratio rather than a fixed radius, so a 28-point menu-bar tile and a
+    /// 38-point card tile read as the same shape.
+    static func tile(_ size: CGFloat) -> CGFloat { (size * 0.28).rounded() }
 }
 
 enum BrandTypography {

@@ -222,7 +222,7 @@ private struct LastFMArtwork: View {
                     }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: CompanionRadius.artwork, style: .continuous))
         .accessibilityHidden(true)
     }
 }
@@ -306,7 +306,7 @@ private struct LastFMScanReviewScreen: View {
                         .frame(height: 50)
                     }
                     .buttonStyle(.plain)
-                    .background(CompanionBrand.scrobbleRed, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .background(CompanionBrand.scrobbleRed, in: RoundedRectangle(cornerRadius: CompanionRadius.xs, style: .continuous))
                     .disabled(selectedIDs.isEmpty || isSubmitting)
                     .opacity(selectedIDs.isEmpty ? 0.45 : 1)
                     .padding(.horizontal, 20)
@@ -600,6 +600,16 @@ enum ChartKind: String, CaseIterable, Identifiable {
         case .tracks: "Top track"
         }
     }
+
+    /// Artists are circles at every size; albums and tracks keep the near-square
+    /// artwork corner. Deriving the shape here stops each list from restating a
+    /// half-the-frame radius, which only approximates a circle.
+    var artworkShape: AnyShape {
+        switch self {
+        case .artists: AnyShape(Circle())
+        case .albums, .tracks: AnyShape(RoundedRectangle(cornerRadius: CompanionRadius.artwork, style: .continuous))
+        }
+    }
 }
 
 struct ChartEntry: Identifiable {
@@ -703,7 +713,7 @@ private struct LastFMChartsScreen: View {
                             VStack(alignment: kind == .artists ? .center : .leading, spacing: 5) {
                                 LastFMArtwork(url: entry.artworkURL)
                                     .frame(width: 144, height: 144)
-                                    .clipShape(RoundedRectangle(cornerRadius: kind == .artists ? 72 : 3))
+                                    .clipShape(kind.artworkShape)
                                     .padding(.bottom, 3)
                                 Text(entry.name).font(.subheadline.bold()).lineLimit(1)
                                 Text(scrobbleCountText(entry.count)).font(.caption).foregroundStyle(CompanionBrand.secondaryText)
@@ -737,7 +747,7 @@ private struct LastFMRankingScreen: View {
                     Text("\(index + 1)").font(.subheadline.monospacedDigit())
                         .foregroundStyle(CompanionBrand.secondaryText).frame(width: 24)
                     LastFMArtwork(url: entry.artworkURL).frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: kind == .artists ? 24 : 3))
+                        .clipShape(kind.artworkShape)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(entry.name).font(.subheadline.bold()).lineLimit(1)
                         if let artist = entry.artist { Text(artist).font(.caption).foregroundStyle(CompanionBrand.secondaryText).lineLimit(1) }
@@ -764,7 +774,7 @@ private struct LastFMChartDetailScreen: View {
         List {
             VStack(spacing: 10) {
                 LastFMArtwork(url: entry.artworkURL).frame(width: 180, height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: kind == .artists ? 90 : 3))
+                    .clipShape(kind.artworkShape)
                 Text(entry.name).font(.title2.bold())
                 if let artist = entry.artist { Text(artist).foregroundStyle(CompanionBrand.secondaryText) }
                 Text(scrobbleCountText(entry.count)).font(.subheadline).foregroundStyle(CompanionBrand.secondaryText)

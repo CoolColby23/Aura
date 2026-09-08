@@ -673,11 +673,11 @@ private struct LastFMRemoteHistoryRow: View {
                 }
             }
             .frame(width: 50, height: 50)
-            .clipShape(.rect(cornerRadius: 8, style: .continuous))
+            .clipShape(.rect(cornerRadius: BrandRadius.xs, style: .continuous))
         } else {
             remotePlaceholder
                 .frame(width: 50, height: 50)
-                .clipShape(.rect(cornerRadius: 8, style: .continuous))
+                .clipShape(.rect(cornerRadius: BrandRadius.xs, style: .continuous))
         }
     }
 
@@ -856,7 +856,7 @@ private struct MetricIcon: View {
             .font(.callout.weight(.semibold))
             .foregroundStyle(tint)
             .frame(width: 34, height: 34)
-            .background(tint.opacity(0.12), in: .rect(cornerRadius: 9))
+            .background(tint.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(34), style: .continuous))
             .accessibilityHidden(true)
     }
 }

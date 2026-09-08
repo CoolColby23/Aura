@@ -20,7 +20,7 @@ struct CommandPaletteView: View {
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 4)
-                    .background(.quaternary, in: .rect(cornerRadius: 6))
+                    .background(.quaternary, in: .rect(cornerRadius: BrandRadius.xxs, style: .continuous))
             }
             .padding(18)
 
@@ -41,7 +41,7 @@ struct CommandPaletteView: View {
                                     Image(systemName: command.symbol)
                                         .font(.system(size: 15, weight: .semibold))
                                         .frame(width: 34, height: 34)
-                                        .background(.quaternary, in: .rect(cornerRadius: 9))
+                                        .background(.quaternary, in: .rect(cornerRadius: BrandRadius.tile(34), style: .continuous))
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(command.title)
                                             .font(.callout.weight(.semibold))

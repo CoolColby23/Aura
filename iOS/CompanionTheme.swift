@@ -82,10 +82,18 @@ enum CompanionSpacing {
     static let xl: CGFloat = 32
 }
 
+/// Continuous rounding, always. `RoundedRectangle` defaults to `.circular`, so
+/// `style: .continuous` has to be passed at every call site.
 enum CompanionRadius {
+    static let xxs: CGFloat = 6
+    static let xs: CGFloat = 8
     static let sm: CGFloat = 12
     static let md: CGFloat = 18
     static let lg: CGFloat = 26
+
+    /// Album and track art in the Last.fm experience stays nearly square, which
+    /// is how Last.fm draws its own grids. Artist art is a circle, not this.
+    static let artwork: CGFloat = 3
 }
 
 /// The widest comfortable measure for the companion's single-column layouts.

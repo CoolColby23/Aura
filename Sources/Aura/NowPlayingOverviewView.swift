@@ -3,6 +3,8 @@ import SwiftUI
 
 struct NowPlayingOverviewView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         LazyVGrid(
@@ -93,7 +95,7 @@ struct NowPlayingOverviewView: View {
                     HStack(spacing: 9) {
                         Image(systemName: entry.status.symbol)
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(entry.status.tint)
+                            .foregroundStyle(entry.status.tint(theme, in: colorScheme))
                             .frame(width: 13)
                             .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
@@ -159,16 +161,18 @@ struct NowPlayingOverviewView: View {
 private struct CaptureConfidenceContent: View {
     let presentation: CaptureStatusPresentation
     let recovery: () -> Void
+    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Label(presentation.status.title, systemImage: presentation.status.symbol)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(presentation.status.tint)
+                    .foregroundStyle(statusTint)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(presentation.status.tint.opacity(0.12), in: .capsule)
+                    .background(statusTint.opacity(0.12), in: .capsule)
                 Spacer()
                 if let timestamp = presentation.timestamp {
                     Text(timestamp, style: .relative)
@@ -185,6 +189,7 @@ private struct CaptureConfidenceContent: View {
                 .fixedSize(horizontal: false, vertical: true)
             if let progress = presentation.progress {
                 ProgressView(value: progress)
+                    .tint(theme.accentGradient)
                     .accessibilityLabel("Scrobble eligibility")
                     .accessibilityValue(progress.formatted(.percent.precision(.fractionLength(0))))
             }
@@ -206,15 +211,20 @@ private struct CaptureConfidenceContent: View {
             }
         }
     }
+
+    private var statusTint: Color { presentation.status.tint(theme, in: colorScheme) }
 }
 
 // Titles, symbols, and tone come from `AuraCore` so the Mac and iPhone
 // apps describe the same situation identically. Only the palette is local.
 private extension CaptureStatusPresentation.Status {
-    var tint: Color {
+    /// Status tone is semantic and fixed, with one exception: "active" is the app
+    /// speaking about itself, so it follows the chosen theme instead of pinning
+    /// the default indigo onto every other palette.
+    func tint(_ theme: AppTheme, in scheme: ColorScheme) -> Color {
         switch tone {
         case .positive: BrandColors.success
-        case .active: BrandColors.indigo
+        case .active: theme.readablePrimary(for: scheme)
         case .paused: BrandColors.warning
         case .neutral: BrandColors.neutral
         case .critical: BrandColors.error

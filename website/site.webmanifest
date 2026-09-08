@@ -1,0 +1,15 @@
+{
+  "name": "Aura — Now playing, everywhere.",
+  "short_name": "Aura",
+  "description": "Private-by-default Discord presence, Last.fm scrobbling, and local listening history for macOS.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f17",
+  "theme_color": "#0f0f17",
+  "icons": [
+    { "src": "/assets/brand/favicon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/assets/brand/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/assets/brand/favicon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/brand/aura-symbol.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

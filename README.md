@@ -1,6 +1,11 @@
 <!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires updating signatures in appcasts that reference this file! This will involve re-running generate_appcast or sign_update.
 -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="brand/Exports/aura-logo-dark.png" />
+  <img src="brand/Exports/aura-logo-light.png" alt="Aura — now playing, everywhere." width="244" />
+</picture>
+
 # Aura
 
 > **Aura was previously called PresenceFM.** The app, its identity, and its bundle

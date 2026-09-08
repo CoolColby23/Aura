@@ -23,7 +23,7 @@ trap cleanup EXIT
 cp -R "$APP" "$STAGING/Aura.app"
 ln -s /Applications "$STAGING/Applications"
 mkdir -p "$STAGING/.background"
-cp "$ROOT/Sources/Aura/Resources/Brand/dmg-background.png" "$STAGING/.background/background.png"
+cp "$ROOT/brand/dmg-background.png" "$STAGING/.background/background.png"
 
 rm -f "$DMG"
 hdiutil create -quiet -volname "Aura" -srcfolder "$STAGING" -ov -format UDRW "$RW_DMG"

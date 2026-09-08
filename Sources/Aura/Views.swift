@@ -4,6 +4,7 @@ import SwiftUI
 
 struct DashboardView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.appTheme) private var theme
     var body: some View {
         @Bindable var model = model
         NavigationSplitView {
@@ -29,6 +30,7 @@ struct DashboardView: View {
                     }
                 }
                 .listStyle(.sidebar)
+                .tint(theme.primaryColor)
                 .scrollContentBackground(.hidden)
                 .accessibilityIdentifier("dashboard.navigation")
                 .safeAreaInset(edge: .bottom) {
@@ -119,15 +121,15 @@ private struct SidebarNavigationRow: View {
     let section: DashboardSection
     let selected: Bool
     @Environment(\.appTheme) private var theme
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Label(section.title, systemImage: section.symbol)
             .font(.callout.weight(.semibold))
-            // The row background is a translucent tint rather than a solid fill,
-            // so the selected label needs a contrast-checked accent instead of
-            // `onPrimaryColor`, which assumes an opaque primary background.
-            .foregroundStyle(selected ? theme.readablePrimary(for: colorScheme) : .primary)
+            // macOS paints its own opaque selection over a selectable List row.
+            // DashboardView tints that selection with the active theme, so the
+            // label must use the matching on-primary color rather than placing
+            // the primary color on top of itself.
+            .foregroundStyle(selected ? theme.onPrimaryColor : .primary)
             .padding(.vertical, 4)
             .listRowBackground(
                 RoundedRectangle(cornerRadius: BrandRadius.md, style: .continuous)
@@ -227,7 +229,7 @@ struct NowPlayingView: View {
                     BrandMark()
                         .frame(width: 92, height: 92)
                         .padding(24)
-                        .background(.ultraThinMaterial, in: .rect(cornerRadius: 26))
+                        .background(.ultraThinMaterial, in: .rect(cornerRadius: BrandRadius.lg, style: .continuous))
                     nowPlayingDetails
                         .frame(maxWidth: 620, alignment: .leading)
                 }
@@ -640,7 +642,7 @@ struct ServiceHealthRow: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(theme.primaryColor)
                     .frame(width: 38, height: 38)
-                    .background(theme.subtleAccent(for: colorScheme), in: .rect(cornerRadius: 11))
+                    .background(theme.subtleAccent(for: colorScheme), in: .rect(cornerRadius: BrandRadius.tile(38), style: .continuous))
                 Spacer()
                 HStack(spacing: 5) {
                     Circle().fill(statusColor).frame(width: 7, height: 7)
@@ -1131,7 +1133,7 @@ private struct QueueRow<Actions: View>: View {
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(tint)
                 .frame(width: 32, height: 32)
-                .background(tint.opacity(0.12), in: .rect(cornerRadius: 9))
+                .background(tint.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(32), style: .continuous))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(record.title)
@@ -1431,7 +1433,7 @@ private struct SupportStatusCard: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(theme.primaryColor)
                     .frame(width: 36, height: 36)
-                    .background(theme.subtleAccent(for: colorScheme), in: .rect(cornerRadius: 10))
+                    .background(theme.subtleAccent(for: colorScheme), in: .rect(cornerRadius: BrandRadius.tile(36), style: .continuous))
                 Spacer()
                 Circle().fill(statusColor).frame(width: 8, height: 8)
                     .accessibilityHidden(true)

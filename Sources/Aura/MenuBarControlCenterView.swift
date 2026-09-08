@@ -326,7 +326,7 @@ private struct MenuBarServiceTile: View {
                 Image(systemName: symbol)
                     .foregroundStyle(theme.primaryColor)
                     .frame(width: 28, height: 28)
-                    .background(theme.primaryColor.opacity(0.12), in: .rect(cornerRadius: 8))
+                    .background(theme.primaryColor.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(28), style: .continuous))
                 Spacer()
                 Toggle(name, isOn: $isEnabled)
                     .labelsHidden()
