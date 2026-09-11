@@ -71,7 +71,7 @@ private struct LastFMTabBar: View {
         Button {
             selection = tab
         } label: {
-            VStack(spacing: 2) {
+            VStack(spacing: CompanionMetrics.titleDetailSpacing) {
                 Image(systemName: symbol)
                     .font(.system(size: 18, weight: .semibold))
                 Text(title)
@@ -136,8 +136,8 @@ private struct LastFMHeader: View {
             Button(action: scan) {
                 Text("Scan")
                     .font(.subheadline.weight(.semibold))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
+                    .padding(.horizontal, CompanionMetrics.headerHorizontal)
+                    .padding(.vertical, CompanionMetrics.headerControlVertical)
                     .background(Color.white.opacity(0.16), in: Capsule())
             }
             .buttonStyle(.plain)
@@ -161,8 +161,8 @@ private struct LastFMHeader: View {
             .accessibilityLabel("Account and settings")
         }
         .overlay { Text("Scrobbles").font(.headline.weight(.bold)).allowsHitTesting(false) }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, CompanionMetrics.headerHorizontal)
+        .padding(.vertical, CompanionMetrics.headerVertical)
         .background(CompanionBrand.surface)
     }
 
@@ -175,10 +175,10 @@ private struct LastFMCompactTrackRow: View {
     let track: CompanionLastFMTrack
 
     var body: some View {
-        HStack(spacing: 11) {
+        HStack(spacing: CompanionMetrics.cardContentSpacing) {
             LastFMArtwork(url: track.artworkURL)
                 .frame(width: 48, height: 48)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                 Text(track.title)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
@@ -309,8 +309,8 @@ private struct LastFMScanReviewScreen: View {
                     .background(CompanionBrand.scrobbleRed, in: RoundedRectangle(cornerRadius: CompanionRadius.xs, style: .continuous))
                     .disabled(selectedIDs.isEmpty || isSubmitting)
                     .opacity(selectedIDs.isEmpty ? 0.45 : 1)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, CompanionMetrics.headerHorizontal)
+                    .padding(.vertical, CompanionMetrics.headerVertical)
                     .background(.ultraThinMaterial)
                 }
             }
@@ -331,8 +331,8 @@ private struct LastFMScanReviewScreen: View {
         HStack {
             Button("Discard") { dismiss() }
                 .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
+                .padding(.horizontal, CompanionMetrics.headerHorizontal)
+                .padding(.vertical, CompanionMetrics.headerControlVertical)
                 .background(Color.white.opacity(0.15), in: Capsule())
             Spacer()
             Text(model.isImportingAppleMusicHistory ? "Scanning" : "\(selectedIDs.count) Scrobbles")
@@ -340,14 +340,14 @@ private struct LastFMScanReviewScreen: View {
             Spacer()
             Button(isEditing ? "Done" : "Edit") { isEditing.toggle() }
                 .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
+                .padding(.horizontal, CompanionMetrics.headerHorizontal)
+                .padding(.vertical, CompanionMetrics.headerControlVertical)
                 .background(Color.white.opacity(0.15), in: Capsule())
                 .disabled(groups.isEmpty)
         }
         .tint(.white)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, CompanionMetrics.headerHorizontal)
+        .padding(.vertical, CompanionMetrics.headerVertical)
         .background(CompanionBrand.surface)
     }
 
@@ -405,18 +405,18 @@ private struct ScanCandidateRow: View {
     let showsSelection: Bool
 
     var body: some View {
-        HStack(spacing: 11) {
+        HStack(spacing: CompanionMetrics.cardContentSpacing) {
             if showsSelection {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isSelected ? CompanionBrand.scrobbleRed : CompanionBrand.secondaryText)
             }
             LastFMArtwork(url: artworkURL).frame(width: 48, height: 48)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                 Text(group.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                 Text(group.artist).font(.caption).foregroundStyle(CompanionBrand.secondaryText).lineLimit(1)
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: CompanionMetrics.titleDetailSpacing) {
                 if let date = group.startedAt {
                     Text(lastFMRelativeText(date))
                         .font(.caption2.monospacedDigit())
@@ -488,8 +488,8 @@ private struct LastFMReportsScreen: View {
                 }
                 .tint(.primary)
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 12)
+            .padding(.horizontal, CompanionMetrics.headerHorizontal)
+            .padding(.bottom, CompanionMetrics.cardContentSpacing)
             .background(CompanionBrand.surface)
 
             ScrollView {
@@ -499,7 +499,7 @@ private struct LastFMReportsScreen: View {
                             "No scrobbles in this report", systemImage: "chart.bar.xaxis",
                             description: Text("Choose another period or refresh your listening history."))
                     } else {
-                        VStack(alignment: .leading, spacing: 5) {
+                        VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                             Text("\(tracks.count.formatted()) Scrobbles").font(.title2.bold())
                             Text("vs. \(previousTracks.count.formatted()) in the previous period")
                                 .font(.subheadline).foregroundStyle(CompanionBrand.secondaryText)
@@ -519,9 +519,9 @@ private struct LastFMReportsScreen: View {
                                 NavigationLink {
                                     LastFMRankingScreen(kind: kind, tracks: tracks)
                                 } label: {
-                                    HStack(spacing: 14) {
+                                    HStack(spacing: CompanionMetrics.gridSpacing) {
                                         LastFMArtwork(url: entry.artworkURL).frame(width: 72, height: 72)
-                                        VStack(alignment: .leading, spacing: 4) {
+                                        VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                                             Text(kind.leaderTitle).font(.caption).foregroundStyle(CompanionBrand.secondaryText)
                                             Text(entry.name).font(.headline).lineLimit(2)
                                             Text(scrobbleCountText(entry.count)).font(.caption).foregroundStyle(CompanionBrand.secondaryText)
@@ -654,18 +654,18 @@ private struct LastFMChartsScreen: View {
                 }.accessibilityLabel("Select chart time range")
             }
             .overlay {
-                VStack(spacing: 2) {
+                VStack(spacing: CompanionMetrics.titleDetailSpacing) {
                     Text("Charts").font(.headline.bold())
                     Text(range.rawValue).font(.caption2).foregroundStyle(CompanionBrand.secondaryText)
                 }.allowsHitTesting(false)
             }
             .tint(.primary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, CompanionMetrics.headerHorizontal)
+            .padding(.vertical, CompanionMetrics.headerVertical)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                         Text("\(filteredTracks.count.formatted()) scrobbles").font(.title2.bold())
                         Text("Your daily average for this period is \(dailyAverage).")
                             .font(.subheadline)
@@ -710,7 +710,7 @@ private struct LastFMChartsScreen: View {
                         NavigationLink {
                             LastFMChartDetailScreen(entry: entry, kind: kind, tracks: filteredTracks)
                         } label: {
-                            VStack(alignment: kind == .artists ? .center : .leading, spacing: 5) {
+                            VStack(alignment: kind == .artists ? .center : .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                                 LastFMArtwork(url: entry.artworkURL)
                                     .frame(width: 144, height: 144)
                                     .clipShape(kind.artworkShape)
@@ -743,12 +743,12 @@ private struct LastFMRankingScreen: View {
             NavigationLink {
                 LastFMChartDetailScreen(entry: entry, kind: kind, tracks: tracks)
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: CompanionMetrics.cardContentSpacing) {
                     Text("\(index + 1)").font(.subheadline.monospacedDigit())
                         .foregroundStyle(CompanionBrand.secondaryText).frame(width: 24)
                     LastFMArtwork(url: entry.artworkURL).frame(width: 48, height: 48)
                         .clipShape(kind.artworkShape)
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                         Text(entry.name).font(.subheadline.bold()).lineLimit(1)
                         if let artist = entry.artist { Text(artist).font(.caption).foregroundStyle(CompanionBrand.secondaryText).lineLimit(1) }
                         Text(scrobbleCountText(entry.count)).font(.caption).foregroundStyle(CompanionBrand.secondaryText)
