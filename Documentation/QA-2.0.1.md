@@ -28,8 +28,9 @@ excluded from this Mac release. No widget distribution or notarization is claime
   inspected. This does not cover every state or the minimum window size.
 - [x] Correct low-contrast accent headings and hero controls using the existing
   appearance-aware readable accent. Remove the unconditional iCloud-sync claim.
-- [x] Implement Quick Open Return activation and Escape dismissal. Final
-  keyboard interaction recheck remains open after UI automation was interrupted.
+- [x] Implement Quick Open Return activation and Escape dismissal. Installed-preview recheck on September 11 passed: typing History and pressing
+  Return navigates to History and dismisses the palette; reopening and pressing
+  Escape dismisses it without changing the destination.
 - [x] Download the public 2.0.0 DMG, verify its published SHA-256 and disk image,
   and cryptographically verify its Ed25519 enclosure signature using the update
   public key bundled in Aura. Enclosure length also matches the archive.
@@ -46,7 +47,6 @@ before drawing a performance conclusion. No performance pass is claimed.
 
 ## Remaining before a fully validated production release
 
-- [ ] Recheck Quick Open Return and Escape in the installed final preview.
 - [ ] Isolated five-minute idle/playing measurements and the four-hour
   mixed-provider soak in `PERFORMANCE.md`, including real offline recovery,
   seek, repeat, provider switching, Discord restart, and Private Mode.
@@ -63,3 +63,14 @@ production feed. Do not upload this preview as a production Sparkle update;
 use the release workflow's monotonically increasing build number instead.
 Developer ID signing/notarization remain unavailable: only Apple Development
 identities were found. The documented ad-hoc distribution path remains in use.
+
+## Branch preparation recheck — September 11
+
+- All 136 tests passed again with `swift test`.
+- Changed-Swift formatting, credential scan, website verification, widget
+  source type-check, and branch patch hygiene passed again.
+- Rebuilt, signature-verified, and installed the 2.0.1 (2026.09.11) preview
+  using `scripts/sync-preview-app.sh`.
+- Preserved iOS source cleanup in a separate commit from the Mac UI changes.
+- Existing iOS companion verification passed, including simulator tests; this
+  preserves CI coverage and does not establish iPhone hardware readiness.
