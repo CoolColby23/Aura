@@ -7,14 +7,20 @@ struct NowPlayingOverviewView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 260, maximum: 420), spacing: 14, alignment: .top)],
-            alignment: .center,
-            spacing: 14
-        ) {
-            captureCard
-            playbackCard
-            sharingCard
+        VStack(spacing: BrandMetrics.gridSpacing) {
+            // No column maximum: three status cards should always share the
+            // full content width instead of leaving a gutter on the right.
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 260), spacing: BrandMetrics.gridSpacing, alignment: .top)],
+                alignment: .center,
+                spacing: BrandMetrics.gridSpacing
+            ) {
+                captureCard
+                playbackCard
+                sharingCard
+            }
+            // The activity list is a running log, not a status tile, so it
+            // spans the row rather than sitting in the first grid column.
             activityCard
         }
     }
@@ -38,11 +44,11 @@ struct NowPlayingOverviewView: View {
                 status: model.musicStatus
             )
             Divider()
-            HStack(spacing: 10) {
+            HStack(spacing: BrandSpacing.sm) {
                 Image(systemName: artworkSymbol)
                     .foregroundStyle(artworkTint)
                     .frame(width: 18)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                     Text("Album artwork").font(.callout.weight(.semibold))
                     Text(artworkDetail).font(.caption).foregroundStyle(.secondary)
                 }
@@ -60,9 +66,9 @@ struct NowPlayingOverviewView: View {
     private var sharingCard: some View {
         NowPlayingInfoCard(title: "Sharing", symbol: model.isPrivate ? "eye.slash" : "antenna.radiowaves.left.and.right") {
             if model.isPrivate {
-                HStack(spacing: 10) {
+                HStack(spacing: BrandSpacing.sm) {
                     Image(systemName: "eye.slash.fill").foregroundStyle(BrandColors.warning)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                         Text("Private Mode").font(.callout.weight(.semibold))
                         Text("Discord and Last.fm are paused").font(.caption).foregroundStyle(.secondary)
                     }
@@ -84,7 +90,7 @@ struct NowPlayingOverviewView: View {
     private var activityCard: some View {
         // Read once: the model derives this list on every access.
         let activity = model.recentCaptureActivity
-        return NowPlayingInfoCard(title: "Recent scrobble activity", symbol: "clock.arrow.circlepath") {
+        return NowPlayingInfoCard(title: "Recent scrobble activity", symbol: "clock.arrow.circlepath", fillsRow: true) {
             if activity.isEmpty {
                 Text("Completed and interrupted plays will be explained here.")
                     .font(.callout)
@@ -92,13 +98,13 @@ struct NowPlayingOverviewView: View {
             } else {
                 ForEach(Array(activity.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 { Divider() }
-                    HStack(spacing: 9) {
+                    HStack(spacing: BrandSpacing.sm) {
                         Image(systemName: entry.status.symbol)
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(entry.status.tint(theme, in: colorScheme))
                             .frame(width: 13)
                             .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                             Text(entry.headline)
                                 .font(.callout.weight(.semibold))
                                 .lineLimit(1)
@@ -165,13 +171,13 @@ private struct CaptureConfidenceContent: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: BrandSpacing.sm) {
                 Label(presentation.status.title, systemImage: presentation.status.symbol)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(statusTint)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, BrandMetrics.capsuleHorizontal)
+                    .padding(.vertical, BrandMetrics.capsuleVertical)
                     .background(statusTint.opacity(0.12), in: .capsule)
                 Spacer()
                 if let timestamp = presentation.timestamp {
@@ -235,18 +241,23 @@ private extension CaptureStatusPresentation.Status {
 private struct NowPlayingInfoCard<Content: View>: View {
     let title: String
     let symbol: String
+    /// Grid tiles share a minimum height so a short card does not sit above a
+    /// ragged bottom edge; a card that already spans the row grows with its
+    /// content instead.
+    var fillsRow = false
     @ViewBuilder let content: Content
     @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             Label(title, systemImage: symbol)
                 .font(.headline)
-                .foregroundStyle(theme.primaryColor)
+                .foregroundStyle(theme.readablePrimary(for: colorScheme))
             content
         }
-        .frame(maxWidth: .infinity, minHeight: 164, alignment: .topLeading)
-        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: fillsRow ? nil : 164, alignment: .topLeading)
+        .padding(BrandMetrics.cardPadding)
         .auraCard(elevated: true)
     }
 }
@@ -257,9 +268,9 @@ private struct OverviewStatusRow: View {
     let status: ServiceStatus
 
     var body: some View {
-        HStack(spacing: 10) {
-            Circle().fill(status.tintColor).frame(width: 7, height: 7)
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: BrandSpacing.sm) {
+            Circle().fill(status.tintColor).frame(width: BrandMetrics.statusDot, height: BrandMetrics.statusDot)
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text(title).font(.callout.weight(.semibold))
                 Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }

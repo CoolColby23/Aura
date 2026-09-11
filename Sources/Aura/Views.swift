@@ -10,9 +10,9 @@ struct DashboardView: View {
         NavigationSplitView {
             VStack(spacing: 0) {
                 SidebarHeader()
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 10)
+                    .padding(.horizontal, BrandSpacing.md)
+                    .padding(.top, BrandSpacing.md)
+                    .padding(.bottom, BrandSpacing.sm)
                 List(selection: $model.selectedSection) {
                     Section("Listen") {
                         ForEach(visibleSections([.nowPlaying, .history])) { section in
@@ -34,12 +34,12 @@ struct DashboardView: View {
                 .scrollContentBackground(.hidden)
                 .accessibilityIdentifier("dashboard.navigation")
                 .safeAreaInset(edge: .bottom) {
-                    VStack(spacing: 10) {
+                    VStack(spacing: BrandSpacing.sm) {
                         sidebarCustomization
                         SidebarPrivacyControl()
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
+                    .padding(.horizontal, BrandSpacing.md)
+                    .padding(.bottom, BrandSpacing.sm)
                 }
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 310)
@@ -121,6 +121,8 @@ private struct SidebarNavigationRow: View {
     let section: DashboardSection
     let selected: Bool
     @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.controlActiveState) private var controlActiveState
 
     var body: some View {
         Label(section.title, systemImage: section.symbol)
@@ -128,8 +130,10 @@ private struct SidebarNavigationRow: View {
             // macOS paints its own opaque selection over a selectable List row.
             // DashboardView tints that selection with the active theme, so the
             // label must use the matching on-primary color rather than placing
-            // the primary color on top of itself.
-            .foregroundStyle(selected ? theme.onPrimaryColor : .primary)
+            // the primary color on top of itself. When the window is inactive
+            // that selection fades to a translucent wash, so the label falls
+            // back to the readable accent instead of white-on-pale.
+            .foregroundStyle(selectedLabelStyle)
             .padding(.vertical, 4)
             .listRowBackground(
                 RoundedRectangle(cornerRadius: BrandRadius.md, style: .continuous)
@@ -138,32 +142,38 @@ private struct SidebarNavigationRow: View {
             )
             .accessibilityIdentifier("dashboard.section.\(section.id.rawValue)")
     }
+
+    private var selectedLabelStyle: Color {
+        guard selected else { return .primary }
+        return controlActiveState == .key ? theme.onPrimaryColor : theme.readablePrimary(for: colorScheme)
+    }
 }
 
 struct NowPlayingView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.appTheme) private var theme
     var body: some View {
         ScrollView {
-            VStack(spacing: BrandSpacing.xxxl) {
+            VStack(spacing: BrandMetrics.screenPadding) {
                 if model.demoModeEnabled {
-                    HStack(spacing: 14) {
+                    HStack(spacing: BrandMetrics.gridSpacing) {
                         Label("Demo playback is active — Discord and Last.fm publishing are paused", systemImage: "testtube.2")
                             .font(.callout.weight(.semibold))
-                            .foregroundStyle(theme.primaryColor)
+                            .foregroundStyle(theme.readablePrimary(for: colorScheme))
                         Spacer()
                         Button("End Demo") { model.setDemoModeEnabled(false) }
                     }
-                    .padding(16)
+                    .padding(BrandMetrics.cardPadding)
                     .auraCard(elevated: true)
-                    .frame(maxWidth: 960)
+                    .frame(maxWidth: DashboardLayout.contentWidth)
                     .accessibilityElement(children: .contain)
                 }
                 heroSection
-                    .frame(maxWidth: 1040)
-                VStack(alignment: .leading, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
+                    .frame(maxWidth: DashboardLayout.contentWidth)
+                VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
+                    VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                         Text("At a glance").font(BrandTypography.sectionTitle)
                         Text("See where playback and artwork came from, plus what Aura shared.")
                             .font(.callout)
@@ -171,9 +181,9 @@ struct NowPlayingView: View {
                     }
                     NowPlayingOverviewView()
                 }
-                .frame(maxWidth: 1040)
+                .frame(maxWidth: DashboardLayout.contentWidth)
             }
-            .padding(BrandSpacing.xxl)
+            .padding(BrandMetrics.screenPadding)
             .frame(maxWidth: .infinity)
         }
         .navigationTitle("Now Playing")
@@ -207,7 +217,7 @@ struct NowPlayingView: View {
                     }
                 }
             }
-            .padding(BrandSpacing.xxl)
+            .padding(BrandSpacing.xl)
         }
         .frame(maxWidth: .infinity)
         .clipShape(.rect(cornerRadius: BrandRadius.xxl, style: .continuous))
@@ -217,6 +227,7 @@ struct NowPlayingView: View {
         }
         .auraCard(elevated: true)
         .auraHeroGlow(active: model.snapshot.state == .playing)
+        .tint(theme.readablePrimary(for: .dark))
         .environment(\.colorScheme, .dark)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.28), value: currentTrackID)
     }
@@ -225,20 +236,20 @@ struct NowPlayingView: View {
         ZStack {
             heroBackground
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 24) {
+                HStack(spacing: BrandSpacing.lg) {
                     BrandMark()
                         .frame(width: 92, height: 92)
-                        .padding(24)
+                        .padding(BrandSpacing.lg)
                         .background(.ultraThinMaterial, in: .rect(cornerRadius: BrandRadius.lg, style: .continuous))
                     nowPlayingDetails
                         .frame(maxWidth: 620, alignment: .leading)
                 }
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: BrandSpacing.md) {
                     BrandMark().frame(width: 72, height: 72)
                     nowPlayingDetails
                 }
             }
-            .padding(28)
+            .padding(BrandSpacing.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .clipShape(.rect(cornerRadius: BrandRadius.xxl, style: .continuous))
@@ -247,6 +258,7 @@ struct NowPlayingView: View {
                 .strokeBorder(theme.secondaryColor.opacity(0.16), lineWidth: 1)
         }
         .auraCard(elevated: true)
+        .tint(theme.readablePrimary(for: .dark))
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .contain)
     }
@@ -273,7 +285,7 @@ struct NowPlayingView: View {
                 if model.canControlPlayback {
                     playbackControls
                 }
-                HStack(spacing: 10) {
+                HStack(spacing: BrandSpacing.sm) {
                     if let url = track.appleMusicURL {
                         Link("Open in \(track.platform.rawValue)", destination: url)
                             .auraButton(prominent: true)
@@ -293,17 +305,20 @@ struct NowPlayingView: View {
                         }
                     } label: {
                         Label("More actions", systemImage: "ellipsis")
-                            .labelStyle(.iconOnly)
-                            .frame(width: 26, height: 26)
-                            .background(.white.opacity(0.10), in: .circle)
                     }
-                    .menuStyle(.borderlessButton)
+                    // Same chrome as the transport buttons: the borderless
+                    // style drew bare accent dots that read as a stray glyph
+                    // when demo playback has no store link beside them.
+                    .labelStyle(.iconOnly)
+                    .menuStyle(.button)
+                    .auraButton()
+                    .menuIndicator(.hidden)
                     .fixedSize()
                     .help("More actions")
                 }
                 ScrobbleProgress(state: model.scrobblePresentation)
             } else {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: BrandSpacing.sm) {
                     if model.demoModeEnabled {
                         Text("Starting safe demo playback…")
                     } else {
@@ -324,7 +339,7 @@ struct NowPlayingView: View {
     }
 
     private var playbackControls: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: BrandSpacing.sm) {
             Button("Previous", systemImage: "backward.fill") { model.performPlaybackControl(.previous) }
                 .labelStyle(.iconOnly)
                 .auraButton()
@@ -382,8 +397,8 @@ struct NowPlayingView: View {
                     systemImage: model.snapshot.state == .playing ? "waveform" : "pause.fill"
                 )
                 .font(.caption.weight(.bold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
+                .padding(.horizontal, BrandMetrics.capsuleHorizontal)
+                .padding(.vertical, BrandMetrics.capsuleVertical)
                 .background(.ultraThinMaterial, in: .capsule)
                 .padding(size * 0.045)
             }
@@ -406,12 +421,18 @@ struct NowPlayingView: View {
     private var heroBackground: some View {
         ZStack {
             if let image = model.artworkImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .blur(radius: 68)
-                    .scaleEffect(1.18)
-                    .opacity(0.34)
+                // Overlay the cover on a flexible base so it fills whatever
+                // the hero content measures. As a direct ZStack child a
+                // square cover scaled to fill would set the card's height to
+                // its own width and stretch the hero down the whole window.
+                Color.clear.overlay {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .blur(radius: 68)
+                        .scaleEffect(1.18)
+                        .opacity(0.34)
+                }
             } else {
                 LinearGradient(
                     colors: [theme.secondaryColor.opacity(0.18), theme.primaryColor.opacity(0.12), Color.clear],
@@ -519,6 +540,11 @@ struct ArtworkView: View {
 enum DashboardLayout {
     static let minimumWidth: CGFloat = 640
     static let minimumHeight: CGFloat = 520
+
+    /// The measure every detail screen centers its content in. Now Playing,
+    /// Status & Support, and Listening History previously chose 1040, 980, and
+    /// 1100, so the content column jumped when the sidebar selection changed.
+    static let contentWidth: CGFloat = 1040
 }
 
 struct ScrobbleProgress: View {
@@ -526,7 +552,7 @@ struct ScrobbleProgress: View {
     @Environment(\.appTheme) private var theme
     var body: some View {
         if let state {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: BrandSpacing.xs) {
                 HStack {
                     Label(state.label, systemImage: symbol(for: state)).font(.subheadline.weight(.semibold))
                     Spacer()
@@ -538,7 +564,7 @@ struct ScrobbleProgress: View {
                 default: EmptyView()
                 }
             }
-            .padding(12)
+            .padding(BrandMetrics.cardPaddingCompact)
             .background(theme.primaryColor.opacity(0.08), in: .rect(cornerRadius: BrandRadius.md, style: .continuous))
         }
     }
@@ -554,51 +580,22 @@ struct ScrobbleProgress: View {
     }
 }
 
-struct StatusCapsule: View {
-    let title: String
-    let status: ServiceStatus
-    @State private var pulse = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 7, height: 7)
-            Text("\(title): \(status.presentationLabel)")
-                .font(.caption.weight(.semibold))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .auraCard(capsule: true)
-        .scaleEffect(status.isConnected && !reduceMotion ? (pulse ? 1.012 : 1.0) : 1.0)
-        .onAppear {
-            guard status.isConnected, !reduceMotion else { return }
-            pulse = true
-        }
-    }
-
-    private var statusColor: Color {
-        status.tintColor
-    }
-}
-
 struct SidebarHeader: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: BrandMetrics.cardPaddingCompact) {
             SweepingBrandMark(isPlaying: model.snapshot.state == .playing)
                 .frame(width: 30, height: 30)
-                .padding(8)
+                .padding(BrandSpacing.xs)
                 .background(.ultraThinMaterial, in: .circle)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text("Aura")
                     .font(BrandTypography.cardTitle)
-                HStack(spacing: 5) {
+                HStack(spacing: BrandSpacing.xs) {
                     Circle()
                         .fill(headerStatusColor)
-                        .frame(width: 6, height: 6)
+                        .frame(width: BrandMetrics.statusDot, height: BrandMetrics.statusDot)
                     Text(headerDetail)
                         .lineLimit(1)
                 }
@@ -625,94 +622,11 @@ struct SidebarHeader: View {
     }
 }
 
-struct ServiceHealthRow: View {
-    let title: String
-    let detail: String
-    let symbol: String
-    let status: ServiceStatus
-    let statusLabelOverride: String?
-    let recoveryTitle: String?
-    let recoveryAction: () -> Void
-    @Environment(\.appTheme) private var theme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack {
-                Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(theme.primaryColor)
-                    .frame(width: 38, height: 38)
-                    .background(theme.subtleAccent(for: colorScheme), in: .rect(cornerRadius: BrandRadius.tile(38), style: .continuous))
-                Spacer()
-                HStack(spacing: 5) {
-                    Circle().fill(statusColor).frame(width: 7, height: 7)
-                    Text(statusLabelOverride ?? status.presentationLabel)
-                        .font(.caption2.weight(.semibold))
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(statusColor.opacity(0.11), in: .capsule)
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(BrandTypography.cardTitle)
-                Text(detail).font(.caption).foregroundStyle(.secondary)
-                if let statusDetail = status.detailLabel, statusLabelOverride == nil {
-                    Text(statusDetail)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(2)
-                }
-            }
-
-            Spacer(minLength: 0)
-            if let recoveryTitle {
-                Button(recoveryTitle, action: recoveryAction)
-                    .auraButton(prominent: true)
-                    .accessibilityHint("Attempts to recover the \(title) connection")
-                    .accessibilityIdentifier("recovery.\(recoveryIdentifier)")
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
-        .padding(15)
-        .auraCard(elevated: true)
-        .accessibilityElement(children: .contain)
-    }
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var statusColor: Color {
-        status.tintColor
-    }
-
-    private var recoveryIdentifier: String {
-        title.lowercased().replacingOccurrences(of: "[^a-z0-9]+", with: "-", options: .regularExpression)
-    }
-}
-
-private struct ServiceStatusIndicator: View {
-    let status: ServiceStatus
-    let labelOverride: String?
-
-    var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 8, height: 8)
-            .accessibilityHidden(true)
-    }
-
-    private var color: Color {
-        if labelOverride != nil { return BrandColors.neutral }
-        return status.tintColor
-    }
-}
-
 struct SidebarPrivacyControl: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
             Label(model.isPrivate ? "Private Mode is on" : "Go Private", systemImage: model.isPrivate ? "eye.slash.fill" : "eye.slash")
                 .font(.callout.weight(.semibold))
             Text(model.isPrivate ? privateDetail : "Pause Discord sharing and Last.fm scrobbling.")
@@ -721,7 +635,7 @@ struct SidebarPrivacyControl: View {
                 .fixedSize(horizontal: false, vertical: true)
             PrivacyControls()
         }
-        .padding(12)
+        .padding(BrandMetrics.cardPaddingCompact)
         .frame(maxWidth: .infinity, alignment: .leading)
         .auraCard(elevated: true)
     }
@@ -757,101 +671,6 @@ struct PrivacyControls: View {
     }
 }
 
-struct MenuBarView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.openWindow) private var openWindow
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 14) {
-                ArtworkView(image: model.artworkImage, size: 68, isPlaying: model.snapshot.state == .playing)
-                VStack(alignment: .leading) {
-                    Text(model.snapshot.track?.title ?? "Nothing Playing").font(.headline).lineLimit(1)
-                    Text(model.snapshot.track?.artist ?? "Choose a connected music app").foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            if let track = model.snapshot.track {
-                if track.supportsFiniteProgress {
-                    PlaybackProgress(snapshot: model.snapshot, duration: track.duration)
-                }
-                ScrobbleProgress(state: model.scrobblePresentation)
-            }
-            VStack(spacing: 8) {
-                CompactStatus(name: model.playbackServiceName, status: model.musicStatus, statusLabelOverride: nil)
-                CompactStatus(name: "Discord", status: model.discordStatus, statusLabelOverride: model.demoModeEnabled ? "Paused for demo" : nil)
-                CompactStatus(name: "Last.fm", status: model.lastFMStatus, statusLabelOverride: model.demoModeEnabled ? "Paused for demo" : nil)
-            }
-            PrivacyControls()
-            Divider()
-            HStack {
-                Button("Dashboard") { NSApp.showDashboard(using: openWindow) }
-                SettingsLink { Text("Settings") }
-                Spacer()
-                Button("Quit") {
-                    model.shutdown(); NSApp.terminate(nil)
-                }
-            }.auraButton()
-        }.padding(18).frame(width: 380).task { model.start() }
-    }
-}
-
-struct CompactStatus: View {
-    let name: String
-    let status: ServiceStatus
-    let statusLabelOverride: String?
-    var body: some View {
-        HStack {
-            ServiceStatusIndicator(status: status, labelOverride: statusLabelOverride)
-                .scaleEffect(0.875)
-            Text(name)
-            Spacer()
-            Text(statusLabelOverride ?? status.presentationLabel).foregroundStyle(.secondary)
-        }
-        .font(.caption)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name), \(statusLabelOverride ?? status.presentationLabel)")
-    }
-}
-
-struct RecentActivityView: View {
-    @Environment(AppModel.self) private var model
-    @Query(sort: \ActivityRecord.startedAt, order: .reverse) private var records: [ActivityRecord]
-    @State private var searchText = ""
-    var body: some View {
-        List(filteredRecords) { record in
-            HStack(spacing: 12) {
-                ArtworkView(data: isCurrent(record) ? (model.artworkData ?? record.artworkData) : record.artworkData, size: 44)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(record.title).font(.headline)
-                    Text(record.album.map { "\(record.artist) • \($0)" } ?? record.artist).foregroundStyle(.secondary).lineLimit(1)
-                }
-                Spacer()
-                Text(record.outcomeLabel).foregroundStyle(record.outcomeLabel == "Skipped" ? .secondary : .primary)
-                Text(record.startedAt, format: .dateTime.month(.abbreviated).day().hour().minute()).foregroundStyle(.secondary)
-            }.padding(.vertical, 3)
-        }
-        .searchable(text: $searchText, prompt: "Search title, artist, or album")
-        .navigationTitle("Recent Activity")
-        .overlay {
-            if filteredRecords.isEmpty {
-                ContentUnavailableView(
-                    searchText.isEmpty ? "No Activity Yet" : "No Matches", systemImage: "clock",
-                    description: Text(searchText.isEmpty ? "Played tracks will appear here." : "Try a different search."))
-            }
-        }
-    }
-
-    private var filteredRecords: [ActivityRecord] {
-        guard !searchText.isEmpty else { return records }
-        return records.filter { [$0.title, $0.artist, $0.album ?? ""].contains { $0.localizedCaseInsensitiveContains(searchText) } }
-    }
-
-    private func isCurrent(_ record: ActivityRecord) -> Bool {
-        record.title == model.snapshot.track?.title && record.artist == model.snapshot.track?.artist
-    }
-}
-
-/// Which pending plays the queue is showing. `.blocked` is the one that matters
-/// during recovery: those are the plays that will never move without a person.
 enum QueueFilter: String, CaseIterable, Identifiable {
     case all = "All"
     case waiting = "Waiting"
@@ -1087,8 +906,8 @@ private struct QueueSummaryHeader: View {
     let revealBlocked: () -> Void
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(alignment: .firstTextBaseline, spacing: BrandMetrics.cardContentSpacing) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text("\(records.count) \(records.count == 1 ? "play is" : "plays are") waiting for Last.fm")
                     .font(BrandTypography.cardTitle)
                 Text(detail)
@@ -1105,7 +924,7 @@ private struct QueueSummaryHeader: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 6)
+        .padding(.vertical, BrandSpacing.xs)
     }
 
     private var detail: String {
@@ -1128,14 +947,14 @@ private struct QueueRow<Actions: View>: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: BrandMetrics.cardContentSpacing) {
             Image(systemName: symbol)
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(tint)
-                .frame(width: 32, height: 32)
-                .background(tint.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(32), style: .continuous))
+                .frame(width: BrandMetrics.tileMedium, height: BrandMetrics.tileMedium)
+                .background(tint.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(BrandMetrics.tileMedium), style: .continuous))
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text(record.title)
                     .font(.headline)
                     .lineLimit(1)
@@ -1151,19 +970,19 @@ private struct QueueRow<Actions: View>: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: 12)
-            VStack(alignment: .trailing, spacing: 6) {
+            Spacer(minLength: BrandMetrics.cardContentSpacing)
+            VStack(alignment: .trailing, spacing: BrandSpacing.xs) {
                 Text(record.stateRaw.queueDisplayName)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(tint)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, BrandMetrics.capsuleHorizontal)
+                    .padding(.vertical, BrandMetrics.capsuleVertical)
                     .background(tint.opacity(0.11), in: .capsule)
                 Text(timingDetail)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            .frame(width: 124, alignment: .trailing)
+            .frame(width: BrandMetrics.rowTrailingColumn, alignment: .trailing)
             Menu("Actions", systemImage: "ellipsis.circle", content: actions)
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -1171,7 +990,7 @@ private struct QueueRow<Actions: View>: View {
                 .fixedSize()
                 .accessibilityLabel("Actions for \(record.title)")
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, BrandSpacing.sm)
         .contentShape(.rect)
     }
 
@@ -1211,12 +1030,12 @@ private struct QueueRecoveryBanner: View {
     let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: BrandMetrics.gridSpacing) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(BrandColors.warning)
                 .font(.title2)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text("\(count) \(count == 1 ? "play needs" : "plays need") attention")
                     .font(.headline)
                 Text(message).font(.callout).foregroundStyle(.secondary)
@@ -1224,8 +1043,8 @@ private struct QueueRecoveryBanner: View {
             Spacer()
             Button("Review Last.fm Settings", action: action)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .padding(.horizontal, BrandSpacing.md)
+        .padding(.vertical, BrandMetrics.cardPaddingCompact)
         .background(BrandColors.warning.opacity(0.08))
         .accessibilityElement(children: .contain)
     }
@@ -1240,8 +1059,8 @@ struct DiagnosticsView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: BrandMetrics.screenPadding) {
+                VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                     Text("Connections at a glance")
                         .font(BrandTypography.sectionTitle)
                     Text("See what Aura can detect and share. If something needs attention, you can fix it here.")
@@ -1249,10 +1068,12 @@ struct DiagnosticsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // Three columns across the full content width, matching the
+                // Now Playing status tiles; narrower panes wrap to two, then one.
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 190, maximum: 320), spacing: 14)],
+                    columns: [GridItem(.adaptive(minimum: 300), spacing: BrandMetrics.gridSpacing, alignment: .top)],
                     alignment: .leading,
-                    spacing: 14
+                    spacing: BrandMetrics.gridSpacing
                 ) {
                     SupportStatusCard(
                         title: model.playbackServiceName,
@@ -1280,7 +1101,7 @@ struct DiagnosticsView: View {
                     )
                 }
 
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
                     Label("Need help?", systemImage: "lifepreserver")
                         .font(.headline)
                     Text("Copy a privacy-safe report to include when asking for support. It leaves out credentials, usernames, and listening details.")
@@ -1296,32 +1117,36 @@ struct DiagnosticsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(BrandMetrics.cardPadding)
                 .auraCard(elevated: true)
 
                 DisclosureGroup(isExpanded: $showsTechnicalDetails) {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: BrandSpacing.md) {
                         technicalSystemDetails
                         technicalPollingDetails
                         technicalExportDetails
                         technicalLogDetails
                         technicalHealthDetails
                     }
-                    .padding(.top, 14)
+                    .padding(.top, BrandSpacing.md)
                 } label: {
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                         Text("Technical details")
                             .font(.headline)
                         Text("Performance measurements, diagnostic logs, and connection history")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    .padding(.leading, BrandSpacing.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
                 }
-                .padding(18)
+                .padding(BrandMetrics.cardPadding)
                 .auraCard()
             }
-            .frame(maxWidth: 980)
-            .padding(28)
+            .frame(maxWidth: DashboardLayout.contentWidth, alignment: .leading)
+            .padding(BrandMetrics.screenPadding)
             .frame(maxWidth: .infinity)
         }
         .navigationTitle("Status & Support")
@@ -1344,7 +1169,7 @@ struct DiagnosticsView: View {
     }
 
     private var technicalSystemDetails: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
             Text("App & System").font(.subheadline.weight(.semibold))
             LabeledContent("macOS", value: ProcessInfo.processInfo.operatingSystemVersionString)
             LabeledContent("Aura", value: "\(ReleaseConfiguration.version) (\(ReleaseConfiguration.build))")
@@ -1358,7 +1183,7 @@ struct DiagnosticsView: View {
     }
 
     private var technicalPollingDetails: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
             Text("Playback Check Performance").font(.subheadline.weight(.semibold))
             LabeledContent("Latest check", value: model.playbackPollMetrics.totalDuration.formatted(.number.precision(.fractionLength(1...1))) + " s")
             ForEach(PlaybackProviderID.allCases) { provider in
@@ -1370,7 +1195,7 @@ struct DiagnosticsView: View {
     }
 
     private var technicalExportDetails: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
             Text("Verification Snapshot").font(.subheadline.weight(.semibold))
             HStack {
                 Button("Copy Snapshot", systemImage: "doc.on.doc", action: model.copyVerificationReport)
@@ -1385,7 +1210,7 @@ struct DiagnosticsView: View {
     }
 
     private var technicalLogDetails: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
             Text("Recent Diagnostic Messages").font(.subheadline.weight(.semibold))
             if records.isEmpty {
                 Text("No diagnostic messages recorded.").foregroundStyle(.secondary)
@@ -1398,7 +1223,7 @@ struct DiagnosticsView: View {
     }
 
     private var technicalHealthDetails: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
             Text("Recent Connection Changes").font(.subheadline.weight(.semibold))
             if healthEvents.isEmpty {
                 Text("No connection changes recorded.").foregroundStyle(.secondary)
@@ -1427,18 +1252,18 @@ private struct SupportStatusCard: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HStack {
                 Image(systemName: symbol)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(theme.primaryColor)
-                    .frame(width: 36, height: 36)
-                    .background(theme.subtleAccent(for: colorScheme), in: .rect(cornerRadius: BrandRadius.tile(36), style: .continuous))
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(theme.readablePrimary(for: colorScheme))
+                    .frame(width: BrandMetrics.tileLarge, height: BrandMetrics.tileLarge)
+                    .background(theme.subtleAccent(for: colorScheme), in: .rect(cornerRadius: BrandRadius.tile(BrandMetrics.tileLarge), style: .continuous))
                 Spacer()
-                Circle().fill(statusColor).frame(width: 8, height: 8)
+                Circle().fill(statusColor).frame(width: BrandMetrics.statusDot, height: BrandMetrics.statusDot)
                     .accessibilityHidden(true)
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text(title).font(.headline)
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
@@ -1458,7 +1283,7 @@ private struct SupportStatusCard: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 155, alignment: .leading)
-        .padding(16)
+        .padding(BrandMetrics.cardPadding)
         .auraCard(elevated: true)
         .accessibilityElement(children: .contain)
     }
@@ -1474,9 +1299,9 @@ private struct PersistenceRecoveryBanner: View {
     @State private var confirmingEmptySession = false
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: BrandMetrics.gridSpacing) {
             Image(systemName: "externaldrive.badge.exclamationmark").foregroundStyle(BrandColors.warning)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text("Local data needs recovery").font(.headline)
                 Text(message).font(.caption).lineLimit(3)
             }
@@ -1490,11 +1315,13 @@ private struct PersistenceRecoveryBanner: View {
                 Button("Dismiss") { model.persistenceIssue = nil }
             }
         }
-        .padding(12).background(.bar)
+        .padding(.horizontal, BrandSpacing.md)
+        .padding(.vertical, BrandMetrics.cardPaddingCompact)
+        .background(.bar)
         .accessibilityElement(children: .contain)
         .overlay(alignment: .bottomLeading) {
             if !model.persistenceRecoveryStatus.isEmpty {
-                Text(model.persistenceRecoveryStatus).font(.caption).foregroundStyle(.secondary).padding(.leading, 42).offset(y: 11)
+                Text(model.persistenceRecoveryStatus).font(.caption).foregroundStyle(.secondary).padding(.leading, 46).offset(y: 11)
             }
         }
         .confirmationDialog("Start with a new local database?", isPresented: $confirmingEmptySession, titleVisibility: .visible) {

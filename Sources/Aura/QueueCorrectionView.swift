@@ -18,7 +18,7 @@ struct QueueCorrectionView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: BrandSpacing.md) {
             Text("Correct Scrobble Metadata").font(.title2.bold())
             Text(
                 "Review the rejected metadata before retrying. Aura keeps the original listen time and duplicate protection."
@@ -42,7 +42,7 @@ struct QueueCorrectionView: View {
                     .accessibilityIdentifier("queue.correction.save")
             }
         }
-        .padding(24)
+        .padding(BrandMetrics.cardPaddingSpacious)
         .frame(width: 480)
     }
 }

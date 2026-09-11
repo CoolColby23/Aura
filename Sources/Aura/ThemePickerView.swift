@@ -7,11 +7,11 @@ struct ThemePickerView: View {
 
     var body: some View {
         @Bindable var preferences = model.preferences
-        VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: BrandSpacing.lg) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text("Appearance")
                     .font(.title2.bold())
-                Text("Choose an appearance and separate preset palettes for light and dark mode. Your choices sync through iCloud.")
+                Text("Choose an appearance and separate preset palettes for light and dark mode.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -25,7 +25,7 @@ struct ThemePickerView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text("Theme library")
                     .font(BrandTypography.cardTitle)
                 Text("Select either color preview to assign that preset to light or dark mode.")
@@ -33,7 +33,10 @@ struct ThemePickerView: View {
                     .foregroundStyle(.secondary)
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 210, maximum: 340), spacing: 12)], spacing: 12) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 210, maximum: 340), spacing: BrandMetrics.gridSpacing)],
+                spacing: BrandMetrics.gridSpacing
+            ) {
                 ForEach(AppTheme.presets) { theme in
                     ThemeCard(
                         theme: theme,
@@ -45,23 +48,23 @@ struct ThemePickerView: View {
                 }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, BrandSpacing.sm)
         .accessibilityIdentifier("appearance.theme-picker")
     }
 
     private func appearancePicker(selection: Binding<AppearanceMode>, light: AppTheme, dark: AppTheme) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: BrandSpacing.sm) {
             ForEach(AppearanceMode.allCases) { mode in
                 Button {
                     selection.wrappedValue = mode
                 } label: {
-                    VStack(spacing: 8) {
+                    VStack(spacing: BrandSpacing.sm) {
                         AppearanceMiniature(mode: mode, light: light, dark: dark)
                         Label(mode.title, systemImage: mode.symbol)
                             .font(.caption.weight(.semibold))
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(10)
+                    .padding(BrandSpacing.sm)
                     .background(
                         RoundedRectangle(cornerRadius: BrandRadius.md, style: .continuous)
                             .fill(selection.wrappedValue == mode ? theme.subtleAccent(for: colorScheme) : Color.primary.opacity(0.035))
@@ -122,8 +125,8 @@ private struct ThemeCard: View {
     @State private var hovered = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: BrandMetrics.cardContentSpacing) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text(theme.name)
                     .font(.callout.weight(.semibold))
                 Text(theme.description)
@@ -132,12 +135,12 @@ private struct ThemeCard: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 4)
-            HStack(spacing: 8) {
+            HStack(spacing: BrandSpacing.sm) {
                 ThemeOrb(theme: theme, scheme: .light, selected: lightSelected, action: selectLight)
                 ThemeOrb(theme: theme, scheme: .dark, selected: darkSelected, action: selectDark)
             }
         }
-        .padding(12)
+        .padding(BrandMetrics.cardPaddingCompact)
         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: BrandRadius.md, style: .continuous)

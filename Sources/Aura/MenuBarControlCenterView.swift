@@ -13,11 +13,11 @@ struct MenuBarControlCenterView: View {
         @Bindable var preferences = model.preferences
         VStack(spacing: 0) {
             header
-                .padding(.horizontal, 16)
-                .padding(.vertical, 13)
+                .padding(.horizontal, BrandSpacing.md)
+                .padding(.vertical, BrandMetrics.cardPaddingCompact)
 
             ScrollView {
-                VStack(spacing: 14) {
+                VStack(spacing: BrandMetrics.gridSpacing) {
                     nowPlayingHero
                     if preferences.menuBarExpanded {
                         serviceGrid(preferences: preferences)
@@ -26,7 +26,7 @@ struct MenuBarControlCenterView: View {
                         compactServiceStatus
                     }
                 }
-                .padding(16)
+                .padding(BrandSpacing.md)
             }
             .scrollIndicators(.hidden)
 
@@ -41,10 +41,10 @@ struct MenuBarControlCenterView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 11) {
+        HStack(spacing: BrandMetrics.cardPaddingCompact) {
             SweepingBrandMark(isPlaying: model.snapshot.state == .playing)
-                .frame(width: 28, height: 28)
-            VStack(alignment: .leading, spacing: 1) {
+                .frame(width: BrandMetrics.tileSmall, height: BrandMetrics.tileSmall)
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text("Aura")
                     .font(.headline)
                 Text(model.snapshot.state == .playing ? "Listening now" : "Ready in the background")
@@ -56,7 +56,7 @@ struct MenuBarControlCenterView: View {
                 model.preferences.menuBarExpanded.toggle()
             } label: {
                 Image(systemName: model.preferences.menuBarExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                    .frame(width: 28, height: 28)
+                    .frame(width: BrandMetrics.tileSmall, height: BrandMetrics.tileSmall)
             }
             .buttonStyle(.plain)
             .help(model.preferences.menuBarExpanded ? "Use Compact Menu" : "Use Expanded Menu")
@@ -78,8 +78,8 @@ struct MenuBarControlCenterView: View {
             Label(model.isPrivate ? "Private" : "Sharing", systemImage: model.isPrivate ? "eye.slash.fill" : "antenna.radiowaves.left.and.right")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(model.isPrivate ? BrandColors.warning : theme.primaryColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, BrandMetrics.capsuleHorizontal)
+                .padding(.vertical, BrandMetrics.capsuleVertical)
                 .background((model.isPrivate ? BrandColors.warning : theme.primaryColor).opacity(0.12), in: .capsule)
         }
         .menuStyle(.borderlessButton)
@@ -90,10 +90,10 @@ struct MenuBarControlCenterView: View {
     private var nowPlayingHero: some View {
         ZStack {
             heroBackdrop
-            VStack(spacing: 14) {
-                HStack(spacing: 16) {
+            VStack(spacing: BrandMetrics.gridSpacing) {
+                HStack(spacing: BrandSpacing.md) {
                     ArtworkView(image: model.artworkImage, size: 104, isPlaying: model.snapshot.state == .playing)
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: BrandSpacing.xs) {
                         Text(playbackEyebrow)
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(theme.secondaryColor)
@@ -132,7 +132,7 @@ struct MenuBarControlCenterView: View {
                     .auraButton(prominent: true)
                 }
             }
-            .padding(16)
+            .padding(BrandSpacing.md)
         }
         .clipShape(.rect(cornerRadius: BrandRadius.xl, style: .continuous))
         .overlay {
@@ -162,7 +162,7 @@ struct MenuBarControlCenterView: View {
     }
 
     private var playbackControls: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: BrandSpacing.md) {
             volumeButton(amount: -10, symbol: "speaker.minus.fill", label: "Lower Volume")
             playbackButton(.previous)
             Button {
@@ -197,7 +197,7 @@ struct MenuBarControlCenterView: View {
     }
 
     private func seekControl(duration: TimeInterval) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: BrandSpacing.xs) {
             Slider(value: $seekPosition, in: 0...max(duration, 1)) { editing in
                 isSeeking = editing
                 if !editing { model.seekPlayback(to: seekPosition) }
@@ -234,7 +234,7 @@ struct MenuBarControlCenterView: View {
     }
 
     private func serviceGrid(preferences: Preferences) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: BrandMetrics.cardPaddingCompact) {
             MenuBarServiceTile(
                 name: "Discord",
                 symbol: "bubble.left.and.bubble.right.fill",
@@ -257,19 +257,18 @@ struct MenuBarControlCenterView: View {
     }
 
     private var compactServiceStatus: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: BrandMetrics.cardPaddingCompact) {
             compactStatus("Discord", model.discordStatus)
             Divider().frame(height: 22)
             compactStatus("Last.fm", model.lastFMStatus)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(BrandMetrics.cardPaddingCompact)
         .auraCard()
     }
 
     private func compactStatus(_ name: String, _ status: ServiceStatus) -> some View {
-        HStack(spacing: 6) {
-            Circle().fill(menuStatusColor(status)).frame(width: 7, height: 7)
+        HStack(spacing: BrandSpacing.xs) {
+            Circle().fill(menuStatusColor(status)).frame(width: BrandMetrics.statusDot, height: BrandMetrics.statusDot)
             Text(name).font(.caption.weight(.semibold))
             Text(status.presentationLabel).font(.caption2).foregroundStyle(.secondary)
         }
@@ -282,7 +281,7 @@ struct MenuBarControlCenterView: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: BrandSpacing.sm) {
             Button("Dashboard", systemImage: "rectangle.grid.2x2") {
                 NSApp.showDashboard(using: openWindow)
             }
@@ -300,7 +299,7 @@ struct MenuBarControlCenterView: View {
             .help("Quit Aura")
         }
         .auraButton()
-        .padding(12)
+        .padding(BrandMetrics.cardPaddingCompact)
         .background(.ultraThinMaterial)
     }
 
@@ -321,12 +320,13 @@ private struct MenuBarServiceTile: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardPaddingCompact) {
             HStack {
                 Image(systemName: symbol)
+                    .font(.callout.weight(.semibold))
                     .foregroundStyle(theme.primaryColor)
-                    .frame(width: 28, height: 28)
-                    .background(theme.primaryColor.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(28), style: .continuous))
+                    .frame(width: BrandMetrics.tileSmall, height: BrandMetrics.tileSmall)
+                    .background(theme.primaryColor.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(BrandMetrics.tileSmall), style: .continuous))
                 Spacer()
                 Toggle(name, isOn: $isEnabled)
                     .labelsHidden()
@@ -334,15 +334,15 @@ private struct MenuBarServiceTile: View {
             }
             Text(name)
                 .font(.callout.weight(.semibold))
-            HStack(spacing: 5) {
-                Circle().fill(statusColor).frame(width: 6, height: 6)
+            HStack(spacing: BrandSpacing.xs) {
+                Circle().fill(statusColor).frame(width: BrandMetrics.statusDot, height: BrandMetrics.statusDot)
                 Text(status.presentationLabel)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }
-        .padding(12)
+        .padding(BrandMetrics.cardPaddingCompact)
         .frame(maxWidth: .infinity, alignment: .leading)
         .auraCard()
         .accessibilityElement(children: .contain)
@@ -359,7 +359,7 @@ private struct MenuBarWeeklyRecapView: View {
 
     var body: some View {
         let recap = WeeklyListeningRecap(records: records)
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardPaddingCompact) {
             HStack {
                 Label("This Week", systemImage: "sparkles")
                     .font(.callout.weight(.semibold))
@@ -389,12 +389,12 @@ private struct MenuBarWeeklyRecapView: View {
                     .lineLimit(1)
             }
         }
-        .padding(14)
+        .padding(BrandMetrics.cardPaddingCompact)
         .auraCard()
     }
 
     private func recapMetric(_ value: String, _ label: String) -> some View {
-        VStack(spacing: 1) {
+        VStack(spacing: BrandMetrics.titleDetailSpacing) {
             Text(value).font(.headline.monospacedDigit())
             Text(label).font(.caption2).foregroundStyle(.secondary)
         }
