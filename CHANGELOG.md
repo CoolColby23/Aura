@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.0.1 - Unreleased
+
+- Make Return run the first matching Quick Open command and Escape dismiss the palette.
+
+- Improve dark-mode contrast for playback card headings, the demo banner, and hero controls.
+
+- Standardize card spacing, status badges, symbol tiles, and screen insets across the Mac app.
+- Align history and pending-play row details and remove unused legacy Mac views.
+- Remove the unconditional iCloud theme-sync claim from Appearance settings; ordinary preview and ad-hoc builds do not have the required entitlement.
+- Fill the content column consistently: Now Playing's activity log spans the row beneath the three status tiles instead of sitting in the first grid column, Status & Support's connection cards, help card, and technical details share one width, and the History summary and rhythm grids no longer stop two-thirds of the way across.
+- Stop the Now Playing hero from stretching to the full window height when a real cover is loaded; the blurred backdrop now fills the card instead of sizing it.
+- Keep the selected sidebar label legible when the window is inactive, give the Now Playing "More actions" menu the same button chrome as the transport controls, align the Settings heading with the form rows, and highlight the Quick Open row that Return will run.
+
 ## 2.0.0 - 2026-09-07
 
 ### Rebrand: PresenceFM is now Aura

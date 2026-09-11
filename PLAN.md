@@ -6,7 +6,18 @@ This file tracks forward-looking outcomes. Shipped work belongs in
 Status notation: `[ ]` planned, `[-]` in progress or partially verified, and
 `[x]` complete.
 
-## Current release — 2.0.0
+## Next release — 2.0.1 (Mac)
+
+The owner discontinued iPhone work on 2026-09-10. Existing iOS source is retained,
+but physical iPhone QA and Mac/iPhone coordination are outside this release.
+
+- [x] Consolidate Mac component measurements and screen spacing.
+- [x] Improve dark-mode accent legibility and Quick Open keyboard activation.
+- [x] Remove the unconditional iCloud theme-sync claim from Appearance.
+- [x] Prepare and verify the local preview and installer; evidence and remaining
+  release checks are recorded in `Documentation/QA-2.0.1.md`.
+
+## Previous release — 2.0.0
 
 Version 2.0 renames PresenceFM to Aura, introduces the Aura halo and adaptive
 theme system across Mac, iPhone, web, and widget source, and preserves existing
@@ -28,15 +39,14 @@ stores, credentials, Keychain items, and backups through the transition.
 
 ## Next
 
-- [ ] Complete foreground, locked, suspended, force-quit, offline, seek, repeat,
-  local-file, and simultaneous-device measurements on physical hardware and
-  record them in `Documentation/QA-2.0.0.md`.
+- [ ] Complete real-provider Mac offline recovery, seek, repeat, local-file,
+  and provider-switching checks and record them in `Documentation/QA-2.0.1.md`.
 - [ ] Finish a human VoiceOver, increased-contrast, reduced-motion, and Dynamic
-  Type pass on both apps.
+  Type pass on the Mac app.
 - [ ] Run and record the four-hour mixed-provider Mac soak test against the
   budgets in `Documentation/PERFORMANCE.md`.
-- [ ] Validate CloudKit coordination using a provisioned two-device build before
-  representing it as shipped behavior.
+- Cross-device CloudKit validation is deferred with the iPhone app; it is not a
+  2.0.1 release claim.
 - [ ] Add Developer ID signing and notarization if sustainable credentials become
   available; retain the documented ad-hoc distribution path otherwise.
 
