@@ -19,19 +19,27 @@ struct SettingsView: View {
         HStack(spacing: 0) {
             settingsSidebar(selection: $model.selectedSettingsCategory)
             Divider()
-            VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label(model.selectedSettingsCategory.rawValue, systemImage: model.selectedSettingsCategory.symbol)
-                        .font(BrandTypography.sectionTitle)
-                    Text(model.selectedSettingsCategory.detail)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+            // The grouped form centers its rows in a fixed measure, so the
+            // heading lives inside the form as the footer of a rowless section:
+            // it then shares the rows' leading edge instead of hugging the pane.
+            // (A header here would be merged with the next section's header.)
+            Form {
+                Section {
+                } footer: {
+                    VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
+                        Label(model.selectedSettingsCategory.rawValue, systemImage: model.selectedSettingsCategory.symbol)
+                            .font(BrandTypography.sectionTitle)
+                            .foregroundStyle(.primary)
+                        Text(model.selectedSettingsCategory.detail)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    // Footers sit 8 points outside the section headers' text edge.
+                    .padding(.leading, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 22)
-                .padding(.bottom, 12)
-
-                Form {
+                Group {
                     switch model.selectedSettingsCategory {
                     case .general:
                         GeneralSettingsSections(model: model, updateManager: updateManager)
@@ -65,9 +73,9 @@ struct SettingsView: View {
                         AdvancedSettingsSection(model: model)
                     }
                 }
-                .formStyle(.grouped)
-                .scrollContentBackground(.hidden)
             }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
         .navigationTitle("Settings")
         .auraPanelBackground()
@@ -109,21 +117,19 @@ struct SettingsView: View {
 
     private func settingsSidebar(selection: Binding<SettingsCategory>) -> some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: BrandSpacing.xs) {
                 Text("SETTINGS")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 4)
+                    .padding(.horizontal, BrandSpacing.sm)
                 TextField("Search", text: $settingsSearchText)
                     .textFieldStyle(.roundedBorder)
-                    .padding(.bottom, 6)
                     .accessibilityLabel("Search settings categories")
                 ForEach(filteredSettingsCategories) { category in
                     Button {
                         selection.wrappedValue = category
                     } label: {
-                        HStack(spacing: 9) {
+                        HStack(spacing: BrandSpacing.sm) {
                             Image(systemName: category.symbol)
                                 .frame(width: 18)
                             Text(category.rawValue)
@@ -131,8 +137,8 @@ struct SettingsView: View {
                         }
                         .font(.callout.weight(.medium))
                         .foregroundStyle(selection.wrappedValue == category ? theme.onPrimaryColor : Color.primary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, BrandSpacing.sm)
+                        .padding(.vertical, BrandSpacing.sm)
                         // Tint the selection with the active theme rather than the
                         // system accent so it stays legible against `onPrimaryColor`.
                         .background(
@@ -148,11 +154,11 @@ struct SettingsView: View {
                     Text("No settings match “\(settingsSearchText)”.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 10)
-                        .padding(.top, 6)
+                        .padding(.horizontal, BrandSpacing.sm)
+                        .padding(.top, BrandSpacing.xs)
                 }
             }
-            .padding(12)
+            .padding(BrandMetrics.cardPaddingCompact)
         }
         .frame(width: 170)
         .background(.thinMaterial)
@@ -273,12 +279,12 @@ private struct SettingsConnectionRow: View {
     let status: ServiceStatus
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: BrandMetrics.cardContentSpacing) {
             Circle()
                 .fill(statusColor)
-                .frame(width: 9, height: 9)
+                .frame(width: BrandMetrics.statusDot, height: BrandMetrics.statusDot)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text(name).font(.callout.weight(.semibold))
                 Text(detail).font(.caption).foregroundStyle(.secondary)
             }
@@ -352,7 +358,7 @@ private struct LastFMSettingsSection: View {
                 LabeledContent("Connected account", value: model.lastFMUsername)
                 Button("Disconnect Last.fm…", role: .destructive, action: disconnect)
             } else {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: BrandSpacing.xs) {
                     Label("Connect Last.fm in three steps", systemImage: "list.number")
                         .font(.callout.weight(.semibold))
                     Text("1. Save your Last.fm API credentials.  2. Authorize Aura in your browser.  3. Return here and complete authorization.")

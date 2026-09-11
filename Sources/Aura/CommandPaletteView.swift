@@ -3,46 +3,55 @@ import SwiftUI
 struct CommandPaletteView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     @State private var query = ""
     @FocusState private var searchFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: BrandMetrics.cardContentSpacing) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
                 TextField("Open a page or run an action", text: $query)
                     .textFieldStyle(.plain)
                     .font(.title3)
                     .focused($searchFocused)
+                    .onSubmit {
+                        guard let command = filteredCommands.first else { return }
+                        command.action()
+                        dismiss()
+                    }
                 Text("⌘K")
                     .font(.caption.monospaced().weight(.semibold))
                     .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, BrandMetrics.capsuleHorizontal)
+                    .padding(.vertical, BrandMetrics.capsuleVertical)
                     .background(.quaternary, in: .rect(cornerRadius: BrandRadius.xxs, style: .continuous))
             }
-            .padding(18)
+            .padding(BrandSpacing.md)
 
             Divider()
 
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 5) {
+                LazyVStack(alignment: .leading, spacing: BrandSpacing.xs) {
                     if filteredCommands.isEmpty {
                         ContentUnavailableView.search(text: query)
                             .frame(maxWidth: .infinity, minHeight: 280)
                     } else {
+                        let defaultCommandID = filteredCommands.first?.id
                         ForEach(filteredCommands) { command in
+                            let isDefault = command.id == defaultCommandID
                             Button {
                                 command.action()
                                 dismiss()
                             } label: {
-                                HStack(spacing: 12) {
+                                HStack(spacing: BrandMetrics.cardContentSpacing) {
                                     Image(systemName: command.symbol)
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .frame(width: 34, height: 34)
-                                        .background(.quaternary, in: .rect(cornerRadius: BrandRadius.tile(34), style: .continuous))
-                                    VStack(alignment: .leading, spacing: 2) {
+                                        .font(.callout.weight(.semibold))
+                                        .frame(width: BrandMetrics.tileMedium, height: BrandMetrics.tileMedium)
+                                        .background(.quaternary, in: .rect(cornerRadius: BrandRadius.tile(BrandMetrics.tileMedium), style: .continuous))
+                                    VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                                         Text(command.title)
                                             .font(.callout.weight(.semibold))
                                         Text(command.detail)
@@ -54,21 +63,37 @@ struct CommandPaletteView: View {
                                     Text(command.group)
                                         .font(.caption2.weight(.medium))
                                         .foregroundStyle(.tertiary)
+                                    if isDefault {
+                                        // Return runs the first match, so show
+                                        // which row that is.
+                                        Text("↩")
+                                            .font(.caption.monospaced().weight(.semibold))
+                                            .foregroundStyle(.tertiary)
+                                            .padding(.horizontal, BrandMetrics.capsuleHorizontal)
+                                            .padding(.vertical, BrandMetrics.capsuleVertical)
+                                            .background(.quaternary, in: .rect(cornerRadius: BrandRadius.xxs, style: .continuous))
+                                            .accessibilityLabel("Return")
+                                    }
                                 }
+                                .padding(.horizontal, BrandSpacing.sm)
+                                .padding(.vertical, BrandSpacing.sm)
+                                .background(
+                                    isDefault ? theme.readablePrimary(for: colorScheme).opacity(0.10) : Color.clear,
+                                    in: .rect(cornerRadius: BrandRadius.sm, style: .continuous)
+                                )
                                 .contentShape(.rect)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
                             }
                             .buttonStyle(.plain)
-                            .accessibilityHint(command.detail)
+                            .accessibilityHint(isDefault ? "\(command.detail). Press Return to run." : command.detail)
                         }
                     }
                 }
-                .padding(10)
+                .padding(BrandSpacing.sm)
             }
         }
         .frame(width: 560, height: 500)
         .onAppear { searchFocused = true }
+        .onExitCommand { dismiss() }
     }
 
     private var filteredCommands: [PaletteCommand] {

@@ -34,7 +34,7 @@ struct ListeningHistoryView: View {
                 }
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: BrandSpacing.xl) {
+                    VStack(alignment: .leading, spacing: BrandMetrics.screenPadding) {
                         historyHeader
                         if source == .lastFM {
                             lastFMRemoteSection
@@ -53,9 +53,8 @@ struct ListeningHistoryView: View {
                             }
                         }
                     }
-                    .frame(maxWidth: 1100)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 24)
+                    .frame(maxWidth: DashboardLayout.contentWidth)
+                    .padding(BrandMetrics.screenPadding)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -131,7 +130,7 @@ struct ListeningHistoryView: View {
         ExtendedListeningInsights(records: records, period: period)
     }
     private var historyHeader: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
             Text(source == .lastFM ? "Last.fm across your devices" : "Your listening, at a glance")
                 .font(BrandTypography.sectionTitle)
             Text(headerDetail)
@@ -168,9 +167,9 @@ struct ListeningHistoryView: View {
     }
 
     private var lastFMRemoteSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                     Label("Last.fm recent scrobbles", systemImage: "dot.radiowaves.left.and.right")
                         .font(BrandTypography.cardTitle)
                     if let updated = model.lastFMRemoteTracksUpdatedAt {
@@ -229,13 +228,13 @@ struct ListeningHistoryView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(BrandMetrics.cardPadding)
         .auraCard(elevated: true)
     }
 
     private var weeklyRecapCard: some View {
         let weeklyRecap = WeeklyListeningRecap(records: records)
-        return VStack(alignment: .leading, spacing: 14) {
+        return VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HStack {
                 Label("This Week", systemImage: "sparkles")
                     .font(.title3.bold())
@@ -250,7 +249,7 @@ struct ListeningHistoryView: View {
                 Text("Your weekly recap will appear after you finish a listen.")
                     .foregroundStyle(.secondary)
             } else {
-                HStack(spacing: 24) {
+                HStack(spacing: BrandSpacing.lg) {
                     RecapValue(value: weeklyRecap.listens.formatted(), label: "Listens")
                     RecapValue(value: weeklyRecap.minutes.formatted(), label: "Minutes")
                     RecapValue(value: weeklyRecap.uniqueArtists.formatted(), label: "Artists")
@@ -258,7 +257,7 @@ struct ListeningHistoryView: View {
                 LazyVGrid(
                     columns: [GridItem(.adaptive(minimum: 190), alignment: .leading)],
                     alignment: .leading,
-                    spacing: 10
+                    spacing: BrandSpacing.sm
                 ) {
                     if let value = weeklyRecap.topArtist { LabeledContent("Top artist", value: value) }
                     if let value = weeklyRecap.topTrack { LabeledContent("Top track", value: value) }
@@ -269,16 +268,18 @@ struct ListeningHistoryView: View {
                 .font(.callout)
             }
         }
-        .padding(20)
+        .padding(BrandMetrics.cardPadding)
         .auraCard()
         .accessibilityElement(children: .contain)
     }
 
     private var summaryGrid: some View {
         LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 150, maximum: 280), spacing: 14)],
+            // Four metrics fill the content width; a column maximum here left
+            // the row ending two-thirds of the way across.
+            columns: [GridItem(.adaptive(minimum: 200), spacing: BrandMetrics.gridSpacing, alignment: .top)],
             alignment: .leading,
-            spacing: 14
+            spacing: BrandMetrics.gridSpacing
         ) {
             ComparisonHistoryMetric(
                 title: "Listens", value: extendedInsights.comparison.current.listens.formatted(),
@@ -301,7 +302,7 @@ struct ListeningHistoryView: View {
     }
 
     private var periodSummary: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HistorySectionHeader(
                 title: "\(period.rawValue) summary",
                 detail: periodSummaryDetail
@@ -325,15 +326,15 @@ struct ListeningHistoryView: View {
     }
 
     private var listeningOverview: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HistorySectionHeader(
                 title: "Listening rhythm",
                 detail: "Your recent activity and most-played artists"
             )
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 310, maximum: 540), spacing: 14, alignment: .top)],
+                columns: [GridItem(.adaptive(minimum: 400), spacing: BrandMetrics.gridSpacing, alignment: .top)],
                 alignment: .leading,
-                spacing: 14
+                spacing: BrandMetrics.gridSpacing
             ) {
                 activityChart
                 topArtists
@@ -342,7 +343,7 @@ struct ListeningHistoryView: View {
     }
 
     private var activityChart: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HStack {
                 Label("Recent 7 Days", systemImage: "chart.bar.fill")
                     .font(.headline)
@@ -377,13 +378,13 @@ struct ListeningHistoryView: View {
             .accessibilityLabel("Listens during the most recent seven days using the active filters")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
+        .padding(BrandMetrics.cardPadding)
         .auraCard()
     }
 
     @ViewBuilder private var topArtists: some View {
         if !summary.topArtists.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
                 HStack {
                     Label("Top Artists", systemImage: "music.mic")
                         .font(.headline)
@@ -393,12 +394,12 @@ struct ListeningHistoryView: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(Array(summary.topArtists.enumerated()), id: \.element.id) { index, artist in
-                    HStack(spacing: 12) {
+                    HStack(spacing: BrandMetrics.cardContentSpacing) {
                         Text("\(index + 1)")
                             .font(.caption.bold().monospacedDigit())
                             .foregroundStyle(index == 0 ? theme.primaryColor : .secondary)
                             .frame(width: 20)
-                        VStack(alignment: .leading, spacing: 5) {
+                        VStack(alignment: .leading, spacing: BrandSpacing.xs) {
                             Text(artist.artist)
                                 .font(.callout.weight(.medium))
                                 .lineLimit(1)
@@ -417,13 +418,13 @@ struct ListeningHistoryView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
+            .padding(BrandMetrics.cardPadding)
             .auraCard()
         }
     }
 
     private var extendedInsightCards: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HistorySectionHeader(
                 title: "Explore your library",
                 detail: "Patterns from played tracks in the selected period"
@@ -431,7 +432,7 @@ struct ListeningHistoryView: View {
             LazyVGrid(
                 columns: insightColumns,
                 alignment: .leading,
-                spacing: 14
+                spacing: BrandMetrics.gridSpacing
             ) {
                 RankedInsightCard(title: "Top Tracks", items: extendedInsights.topTracks)
                 RankedInsightCard(title: "Top Albums", items: extendedInsights.topAlbums)
@@ -439,9 +440,9 @@ struct ListeningHistoryView: View {
             LazyVGrid(
                 columns: insightColumns,
                 alignment: .leading,
-                spacing: 14
+                spacing: BrandMetrics.gridSpacing
             ) {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
                     Label("Listening by Hour", systemImage: "clock")
                         .font(.headline)
                     Chart(extendedInsights.hourlyCounts) { item in
@@ -458,9 +459,9 @@ struct ListeningHistoryView: View {
                     .frame(height: 130)
                     .accessibilityLabel(hourlyAccessibilitySummary)
                 }
-                .padding(20)
+                .padding(BrandMetrics.cardPadding)
                 .auraCard()
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
                     Label("Music Platforms", systemImage: "music.note.list")
                         .font(.headline)
                     if extendedInsights.platformCounts.isEmpty {
@@ -476,7 +477,7 @@ struct ListeningHistoryView: View {
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
+                .padding(BrandMetrics.cardPadding)
                 .auraCard()
             }
             Text(
@@ -488,8 +489,8 @@ struct ListeningHistoryView: View {
 
     private var insightColumns: [GridItem] {
         [
-            GridItem(.flexible(minimum: 260), spacing: 14, alignment: .top),
-            GridItem(.flexible(minimum: 260), spacing: 14, alignment: .top),
+            GridItem(.flexible(minimum: 260), spacing: BrandMetrics.gridSpacing, alignment: .top),
+            GridItem(.flexible(minimum: 260), spacing: BrandMetrics.gridSpacing, alignment: .top),
         ]
     }
 
@@ -501,9 +502,9 @@ struct ListeningHistoryView: View {
     }
 
     private var historyList: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HStack {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                     Text("Recent activity on this Mac")
                         .font(BrandTypography.cardTitle)
                     Text("Local Aura history stays private on this Mac")
@@ -529,7 +530,7 @@ struct ListeningHistoryView: View {
                 }
             }
         }
-        .padding(20)
+        .padding(BrandMetrics.cardPadding)
         .auraCard(elevated: true)
     }
 
@@ -602,10 +603,10 @@ private struct LastFMRemoteHistoryRow: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: BrandMetrics.gridSpacing) {
             remoteArtwork
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
+                HStack(spacing: BrandSpacing.sm) {
                     Text(track.title)
                         .font(.headline)
                         .lineLimit(1)
@@ -613,8 +614,8 @@ private struct LastFMRemoteHistoryRow: View {
                         Text("Now")
                             .font(.caption2.weight(.bold))
                             .foregroundStyle(theme.primaryColor)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
+                            .padding(.horizontal, BrandMetrics.capsuleHorizontal)
+                            .padding(.vertical, BrandMetrics.capsuleVertical)
                             .background(theme.primaryColor.opacity(0.12), in: .capsule)
                     }
                 }
@@ -630,12 +631,12 @@ private struct LastFMRemoteHistoryRow: View {
                 }
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 6) {
+            VStack(alignment: .trailing, spacing: BrandSpacing.xs) {
                 Label("Last.fm", systemImage: "dot.radiowaves.left.and.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(theme.primaryColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, BrandMetrics.capsuleHorizontal)
+                    .padding(.vertical, BrandMetrics.capsuleVertical)
                     .background(theme.primaryColor.opacity(0.11), in: .capsule)
                 if let listenedAt = track.listenedAt {
                     Text(listenedAt, format: .dateTime.month(.abbreviated).day().hour().minute())
@@ -647,9 +648,9 @@ private struct LastFMRemoteHistoryRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 128, alignment: .trailing)
+            .frame(width: BrandMetrics.rowTrailingColumn, alignment: .trailing)
         }
-        .padding(.vertical, 11)
+        .padding(.vertical, BrandSpacing.sm)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
     }
@@ -688,7 +689,7 @@ private struct LastFMRemoteHistoryRow: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            BrandMark().padding(10)
+            BrandMark().padding(BrandSpacing.sm)
         }
     }
 }
@@ -700,7 +701,7 @@ private struct ComparisonHistoryMetric: View {
     let symbol: String
     let tint: Color
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HStack {
                 MetricIcon(symbol: symbol, tint: tint)
                 Spacer()
@@ -710,7 +711,7 @@ private struct ComparisonHistoryMetric: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text(value)
                     .font(.title.bold())
                     .monospacedDigit()
@@ -720,7 +721,7 @@ private struct ComparisonHistoryMetric: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-        .padding(18)
+        .padding(BrandMetrics.cardPadding)
         .auraCard()
         .accessibilityElement(children: .combine)
     }
@@ -731,19 +732,19 @@ private struct RankedInsightCard: View {
     let items: [RankedListen]
     @Environment(\.appTheme) private var theme
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             Label(title, systemImage: title == "Top Tracks" ? "music.note" : "square.stack")
                 .font(.headline)
             if items.isEmpty {
                 Text("No played tracks in this period.").foregroundStyle(.secondary)
             } else {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    HStack(spacing: 10) {
+                    HStack(spacing: BrandSpacing.sm) {
                         Text("\(index + 1)")
                             .font(.caption.bold().monospacedDigit())
                             .foregroundStyle(index == 0 ? theme.primaryColor : .secondary)
                             .frame(width: 18)
-                        VStack(alignment: .leading, spacing: 1) {
+                        VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                             Text(item.name)
                                 .font(.callout.weight(.medium))
                                 .lineLimit(1)
@@ -763,7 +764,7 @@ private struct RankedInsightCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
+        .padding(BrandMetrics.cardPadding)
         .auraCard()
     }
 }
@@ -774,12 +775,12 @@ private struct HistoryMetric: View {
     let symbol: String
     let tint: Color
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
             HStack {
                 MetricIcon(symbol: symbol, tint: tint)
                 Spacer()
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text(value)
                     .font(.title.bold())
                     .monospacedDigit()
@@ -789,7 +790,7 @@ private struct HistoryMetric: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-        .padding(18)
+        .padding(BrandMetrics.cardPadding)
         .auraCard()
         .accessibilityElement(children: .combine)
     }
@@ -799,9 +800,9 @@ private struct HistoryRow: View {
     let record: ActivityRecord
     let currentArtwork: Data?
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: BrandMetrics.gridSpacing) {
             ArtworkView(data: currentArtwork ?? record.artworkData, size: 50)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
                 Text(record.title)
                     .font(.headline)
                     .lineLimit(1)
@@ -817,15 +818,15 @@ private struct HistoryRow: View {
                 }
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 6) {
+            VStack(alignment: .trailing, spacing: BrandSpacing.xs) {
                 OutcomeLabel(outcome: record.outcomeLabel)
                 Text(record.startedAt, format: .dateTime.month(.abbreviated).day().hour().minute())
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            .frame(width: 116, alignment: .trailing)
+            .frame(width: BrandMetrics.rowTrailingColumn, alignment: .trailing)
         }
-        .padding(.vertical, 11)
+        .padding(.vertical, BrandSpacing.sm)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
     }
@@ -836,7 +837,7 @@ private struct HistorySectionHeader: View {
     let detail: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
             Text(title)
                 .font(.title3.bold())
             Text(detail)
@@ -855,8 +856,8 @@ private struct MetricIcon: View {
         Image(systemName: symbol)
             .font(.callout.weight(.semibold))
             .foregroundStyle(tint)
-            .frame(width: 34, height: 34)
-            .background(tint.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(34), style: .continuous))
+            .frame(width: BrandMetrics.tileMedium, height: BrandMetrics.tileMedium)
+            .background(tint.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(BrandMetrics.tileMedium), style: .continuous))
             .accessibilityHidden(true)
     }
 }
@@ -866,7 +867,7 @@ private struct RecapValue: View {
     let label: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
             Text(value).font(.title2.bold().monospacedDigit())
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
@@ -880,7 +881,7 @@ private struct PlatformListenRow: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: BrandSpacing.xs) {
             HStack {
                 Text(item.platform)
                     .font(.callout.weight(.medium))
@@ -905,8 +906,8 @@ private struct OutcomeLabel: View {
         Label(outcome, systemImage: symbol)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(tint)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, BrandMetrics.capsuleHorizontal)
+            .padding(.vertical, BrandMetrics.capsuleVertical)
             .background(tint.opacity(0.11), in: .capsule)
     }
 

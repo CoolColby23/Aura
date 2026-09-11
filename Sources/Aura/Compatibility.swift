@@ -1,8 +1,8 @@
 import SwiftUI
 
 extension View {
-    func auraCard(capsule: Bool = false, elevated: Bool = false) -> some View {
-        modifier(AuraCardModifier(capsule: capsule, elevated: elevated))
+    func auraCard(elevated: Bool = false) -> some View {
+        modifier(AuraCardModifier(elevated: elevated))
     }
 
     @ViewBuilder
@@ -47,55 +47,42 @@ private struct AuraHeroGlowModifier: ViewModifier {
 }
 
 private struct AuraCardModifier: ViewModifier {
-    let capsule: Bool
     let elevated: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appTheme) private var theme
 
+    private var cornerRadius: CGFloat { elevated ? BrandRadius.lg : BrandRadius.md }
+
     func body(content: Content) -> some View {
         if #available(macOS 26, *) {
-            if capsule {
-                content
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(theme.surface(for: colorScheme)))
-                    .glassEffect(.regular.tint(theme.primaryColor.opacity(0.07)), in: .capsule)
-            } else {
-                content
-                    .background(
-                        RoundedRectangle(cornerRadius: elevated ? BrandRadius.lg : BrandRadius.md, style: .continuous)
-                            .fill(theme.surface(for: colorScheme, elevated: elevated))
-                    )
-                    .glassEffect(
-                        .regular.tint(theme.primaryColor.opacity(elevated ? 0.07 : 0.04)),
-                        in: .rect(cornerRadius: elevated ? BrandRadius.lg : BrandRadius.md)
-                    )
-                    .shadow(
-                        color: elevated ? BrandElevation.low.color(tint: theme.primaryColor, scheme: colorScheme) : .clear,
-                        radius: elevated ? BrandElevation.low.radius : 0,
-                        y: elevated ? BrandElevation.low.y : 0
-                    )
-            }
+            content
+                .background(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(theme.surface(for: colorScheme, elevated: elevated))
+                )
+                .glassEffect(
+                    .regular.tint(theme.primaryColor.opacity(elevated ? 0.07 : 0.04)),
+                    in: .rect(cornerRadius: cornerRadius)
+                )
+                .shadow(
+                    color: elevated ? BrandElevation.low.color(tint: theme.primaryColor, scheme: colorScheme) : .clear,
+                    radius: elevated ? BrandElevation.low.radius : 0,
+                    y: elevated ? BrandElevation.low.y : 0
+                )
         } else {
             content
-                .padding(.horizontal, capsule ? 12 : 0)
-                .padding(.vertical, capsule ? 8 : 0)
                 .background {
-                    if capsule {
-                        Capsule().fill(fill).overlay(Capsule().strokeBorder(stroke, lineWidth: 1))
-                    } else {
-                        RoundedRectangle(cornerRadius: elevated ? BrandRadius.lg : BrandRadius.md, style: .continuous)
-                            .fill(fill)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: elevated ? BrandRadius.lg : BrandRadius.md, style: .continuous)
-                                    .strokeBorder(stroke, lineWidth: 1)
-                            )
-                            .shadow(
-                                color: elevated ? BrandElevation.low.color(tint: theme.primaryColor, scheme: colorScheme) : .clear,
-                                radius: elevated ? BrandElevation.low.radius : 0,
-                                y: elevated ? BrandElevation.low.y : 0
-                            )
-                    }
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(fill)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .strokeBorder(stroke, lineWidth: 1)
+                        )
+                        .shadow(
+                            color: elevated ? BrandElevation.low.color(tint: theme.primaryColor, scheme: colorScheme) : .clear,
+                            radius: elevated ? BrandElevation.low.radius : 0,
+                            y: elevated ? BrandElevation.low.y : 0
+                        )
                 }
         }
     }

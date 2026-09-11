@@ -96,8 +96,59 @@ enum BrandRadius {
     /// Symbol tiles — the small tinted squares that front service cards, queue
     /// rows, metrics, and command-palette results — hold a constant corner-to-edge
     /// ratio rather than a fixed radius, so a 28-point menu-bar tile and a
-    /// 38-point card tile read as the same shape.
+    /// 36-point card tile read as the same shape. Sizes are in `BrandMetrics`.
     static func tile(_ size: CGFloat) -> CGFloat { (size * 0.28).rounded() }
+}
+
+/// Measurements for the small components that repeat across the app: the status
+/// dot, the tinted status capsule, the symbol tile, a card's interior, and the
+/// gap between sibling cards.
+///
+/// The scales above answer "how far apart"; these answer "how big is this
+/// particular thing". They are named because every one of them used to be a
+/// literal at its call site, and the call sites had drifted — four status-dot
+/// diameters, five capsule paddings, and seven card paddings all describing the
+/// same component. A new call site should inherit the decision, not re-guess it.
+enum BrandMetrics {
+    /// The filled dot in front of a connection status label.
+    static let statusDot: CGFloat = 7
+
+    /// The interior of a tinted status or tag capsule — the `caption2`-sized
+    /// chips that label a queue state, an outcome, a source, or a connection.
+    static let capsuleHorizontal: CGFloat = 9
+    static let capsuleVertical: CGFloat = 5
+
+    /// Symbol tiles. Three sizes, by the surface the tile sits on: a card in a
+    /// grid, a list row or command result, and the narrow menu-bar panel.
+    /// `BrandRadius.tile` keeps all three the same shape.
+    static let tileLarge: CGFloat = 36
+    static let tileMedium: CGFloat = 32
+    static let tileSmall: CGFloat = 28
+
+    /// Card interiors. `compact` is for the narrow menu-bar and sidebar columns,
+    /// `spacious` for panel-scale surfaces such as an onboarding step; every
+    /// other card takes the standard value.
+    static let cardPaddingCompact: CGFloat = 12
+    static let cardPadding = BrandSpacing.md
+    static let cardPaddingSpacious = BrandSpacing.lg
+
+    /// Between a heading and the caption directly beneath it.
+    static let titleDetailSpacing: CGFloat = 3
+
+    /// Between the stacked blocks inside a card.
+    static let cardContentSpacing: CGFloat = 12
+
+    /// Grid gutters, and the gap between sibling cards in a stack.
+    static let gridSpacing: CGFloat = 14
+
+    /// The trailing status-and-timestamp column of a list row. The queue, local
+    /// history, and Last.fm history rows can appear one under another, so they
+    /// reserve the same width and their timestamps line up.
+    static let rowTrailingColumn: CGFloat = 124
+
+    /// The outer padding of a scrolling detail screen, so switching sidebar
+    /// sections does not shift the content inset.
+    static let screenPadding = BrandSpacing.xl
 }
 
 enum BrandTypography {
