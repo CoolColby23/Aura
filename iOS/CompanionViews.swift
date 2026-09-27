@@ -355,7 +355,7 @@ struct HistoricalScrobbleSelectionView: View {
                                 .foregroundStyle(selectedIDs.contains(listen.id) ? CompanionBrand.indigo : Color.secondary)
                                 .font(.title3)
                                 .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 3) {
+                            VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                                 Text(listen.canonicalMetadata.title)
                                     .font(.headline)
                                     .foregroundStyle(.primary)
@@ -373,7 +373,7 @@ struct HistoricalScrobbleSelectionView: View {
                             }
                             Spacer(minLength: CompanionSpacing.sm)
                             if let date = listen.canonicalMetadata.startedAt {
-                                VStack(alignment: .trailing, spacing: 2) {
+                                VStack(alignment: .trailing, spacing: CompanionMetrics.titleDetailSpacing) {
                                     Text(date, format: .dateTime.month(.abbreviated).day())
                                         .font(.caption.weight(.medium).monospacedDigit())
                                     Text(date, format: .dateTime.hour().minute())
@@ -383,7 +383,7 @@ struct HistoricalScrobbleSelectionView: View {
                                 .foregroundStyle(CompanionBrand.secondaryText)
                             }
                         }
-                        .padding(.vertical, 2)
+                        .padding(.vertical, CompanionMetrics.rowVerticalPadding)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
@@ -536,9 +536,9 @@ struct CompanionCaptureStatusCard: View {
                     // The halo sweeps while a track is actually being observed, which
                     // is the companion's only live-playback surface.
                     SweepingCompanionBrandMark(isPlaying: true)
-                        .frame(width: 26, height: 26)
+                        .frame(width: CompanionMetrics.tile, height: CompanionMetrics.tile)
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                         Text(evidence.originalMetadata.title)
                             .font(.title3.weight(.semibold))
                             .lineLimit(1)
@@ -556,7 +556,7 @@ struct CompanionCaptureStatusCard: View {
                     .accessibilityLabel("Scrobble eligibility")
                     .accessibilityValue(progress.formatted(.percent.precision(.fractionLength(0))))
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                 Text(presentation.headline)
                     .font(.subheadline.weight(.semibold))
                 Text(presentation.explanation)
@@ -607,10 +607,13 @@ struct CompanionCaptureActivityView: View {
                     Image(systemName: entry.status.symbol)
                         .font(.callout.weight(.semibold))
                         .foregroundStyle(entry.status.tint)
-                        .frame(width: 30, height: 30)
-                        .background(entry.status.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: CompanionRadius.sm, style: .continuous))
+                        .frame(width: CompanionMetrics.tile, height: CompanionMetrics.tile)
+                        .background(
+                            entry.status.tint.opacity(0.14),
+                            in: RoundedRectangle(cornerRadius: CompanionRadius.tile(CompanionMetrics.tile), style: .continuous)
+                        )
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
+                    VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                         Text(entry.headline)
                             .font(.subheadline.weight(.semibold))
                         Text(entry.explanation)
@@ -625,7 +628,7 @@ struct CompanionCaptureActivityView: View {
                             .foregroundStyle(.tertiary)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, CompanionMetrics.rowVerticalPadding)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(entry.accessibilitySummary)
             }
@@ -701,8 +704,8 @@ struct CompanionStatusPill: View {
         Label(title, systemImage: symbol)
             .font(.caption2.weight(.semibold))
             .foregroundStyle(tint)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, CompanionMetrics.capsuleHorizontal)
+            .padding(.vertical, CompanionMetrics.capsuleVertical)
             .background(tint.opacity(0.14), in: Capsule())
     }
 }
@@ -727,7 +730,7 @@ struct LastFMTrackRow: View {
                     .strokeBorder(CompanionBrand.hairline, lineWidth: 1)
             )
             .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                 Text(track.title)
                     .font(.headline)
                     .lineLimit(1)
@@ -751,7 +754,7 @@ struct LastFMTrackRow: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, CompanionMetrics.rowVerticalPadding)
         .accessibilityElement(children: .combine)
     }
 }
@@ -854,10 +857,10 @@ struct ListenRow: View {
             Image(systemName: icon)
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(color)
-                .frame(width: 30, height: 30)
-                .background(color.opacity(0.14), in: RoundedRectangle(cornerRadius: CompanionRadius.sm, style: .continuous))
+                .frame(width: CompanionMetrics.tile, height: CompanionMetrics.tile)
+                .background(color.opacity(0.14), in: RoundedRectangle(cornerRadius: CompanionRadius.tile(CompanionMetrics.tile), style: .continuous))
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: CompanionMetrics.titleDetailSpacing) {
                 Text(listen.canonicalMetadata.title)
                     .font(.headline)
                     .lineLimit(1)
@@ -873,12 +876,12 @@ struct ListenRow: View {
                 }
             }
             Spacer(minLength: CompanionSpacing.xs)
-            VStack(alignment: .trailing, spacing: 4) {
+            VStack(alignment: .trailing, spacing: CompanionMetrics.titleDetailSpacing) {
                 Text(listen.state.rawValue.spaced)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(color)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, CompanionMetrics.capsuleHorizontal)
+                    .padding(.vertical, CompanionMetrics.capsuleVertical)
                     .background(color.opacity(0.14), in: Capsule())
                 if let date = listen.canonicalMetadata.startedAt {
                     Text(date, style: .time)
@@ -887,7 +890,7 @@ struct ListenRow: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, CompanionMetrics.rowVerticalPadding)
         .accessibilityElement(children: .combine)
     }
 

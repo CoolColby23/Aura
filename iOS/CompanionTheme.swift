@@ -94,6 +94,42 @@ enum CompanionRadius {
     /// Album and track art in the Last.fm experience stays nearly square, which
     /// is how Last.fm draws its own grids. Artist art is a circle, not this.
     static let artwork: CGFloat = 3
+
+    /// Symbol tiles hold a constant corner-to-edge ratio rather than a fixed
+    /// radius, matching `BrandRadius.tile` on macOS so a tile reads as the same
+    /// shape on both platforms.
+    static func tile(_ size: CGFloat) -> CGFloat { (size * 0.28).rounded() }
+}
+
+/// Measurements for the components that repeat across the companion, mirroring
+/// `BrandMetrics` on macOS. The scales above answer "how far apart"; these
+/// answer "how big is this particular thing", which is what the call sites used
+/// to guess at individually.
+enum CompanionMetrics {
+    /// The interior of a tinted status or tag capsule.
+    static let capsuleHorizontal: CGFloat = 9
+    static let capsuleVertical: CGFloat = 5
+
+    /// The tinted square behind a symbol at the head of a list row.
+    static let tile: CGFloat = 30
+
+    /// Between a heading and the caption directly beneath it.
+    static let titleDetailSpacing: CGFloat = 3
+
+    /// Between the stacked blocks inside a card, and between a row's artwork and
+    /// the text beside it.
+    static let cardContentSpacing: CGFloat = 12
+
+    /// Grid gutters, and the gap between sibling cards in a stack.
+    static let gridSpacing: CGFloat = 14
+
+    /// A list row's inset above and below its content.
+    static let rowVerticalPadding: CGFloat = 4
+
+    /// A screen header's inset, and the interior of the pill buttons inside it.
+    static let headerHorizontal = CompanionSpacing.md
+    static let headerVertical = CompanionSpacing.sm
+    static let headerControlVertical: CGFloat = 9
 }
 
 /// The widest comfortable measure for the companion's single-column layouts.

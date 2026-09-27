@@ -27,7 +27,7 @@ struct OnboardingView: View {
                         branded: true
                     )
                 case 1:
-                    VStack(spacing: 14) {
+                    VStack(spacing: BrandSpacing.md) {
                         IntroStep(
                             title: "Choose Your Players", symbol: "music.note",
                             text:
@@ -38,7 +38,7 @@ struct OnboardingView: View {
                         }
                     }
                 case 2:
-                    VStack(spacing: 16) {
+                    VStack(spacing: BrandSpacing.md) {
                         IntroStep(
                             title: "Connect Discord", symbol: "bubble.left.and.bubble.right",
                             text: "Aura includes its Discord application configuration. Keep Discord Desktop running, then enable Rich Presence."
@@ -51,7 +51,7 @@ struct OnboardingView: View {
                         }
                     }
                 case 3:
-                    VStack(spacing: 16) {
+                    VStack(spacing: BrandSpacing.md) {
                         IntroStep(
                             title: "Connect Last.fm", symbol: "dot.radiowaves.left.and.right",
                             text: "Enter the API key and shared secret from your Last.fm API account, then authorize Aura."
@@ -82,7 +82,7 @@ struct OnboardingView: View {
                             "Private Mode clears Discord presence and suppresses Last.fm updates. You can enable it temporarily from the menu bar at any time."
                     )
                 case 5:
-                    VStack(spacing: 16) {
+                    VStack(spacing: BrandSpacing.md) {
                         IntroStep(
                             title: "Start Automatically", symbol: "power",
                             text: "Aura can launch quietly when you log in."
@@ -90,7 +90,7 @@ struct OnboardingView: View {
                         Toggle("Launch at Login", isOn: $launchAtLogin)
                     }
                 case 6:
-                    VStack(spacing: 16) {
+                    VStack(spacing: BrandSpacing.md) {
                         IntroStep(
                             title: "Actionable Notifications", symbol: "bell.badge",
                             text: "Notifications are only used for permission loss, expired authorization, or a persistently stuck queue."
@@ -106,7 +106,7 @@ struct OnboardingView: View {
                 }
             }
             .frame(maxWidth: 600, minHeight: 330)
-            .padding(28)
+            .padding(BrandMetrics.cardPaddingSpacious)
             .auraCard(elevated: true)
 
             HStack {
@@ -138,13 +138,13 @@ struct OnboardingView: View {
     }
 
     private func header(preferences: Preferences) -> some View {
-        VStack(spacing: 14) {
+        VStack(spacing: BrandMetrics.gridSpacing) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+                    HStack(spacing: BrandMetrics.cardContentSpacing) {
                         BrandMark()
                             .frame(width: 32, height: 32)
-                            .padding(8)
+                            .padding(BrandSpacing.xs)
                             .background(.ultraThinMaterial, in: .circle)
                         Text("Aura")
                             .font(BrandTypography.sectionTitle)
@@ -165,7 +165,7 @@ struct OnboardingView: View {
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: BrandSpacing.sm) {
                 ForEach(steps.indices, id: \.self) { index in
                     Capsule()
                         .fill(
@@ -220,7 +220,7 @@ struct IntroStep: View {
     @Environment(\.appTheme) private var theme
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: BrandSpacing.lg) {
             ZStack {
                 Circle()
                     .fill(theme.accentGradient.opacity(0.14))

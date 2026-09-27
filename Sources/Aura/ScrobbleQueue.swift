@@ -105,38 +105,48 @@ final class ScrobbleQueue {
                 record.lastError = nil
                 onSubmitted?(record.duplicateKey)
             } catch let error as LastFMError {
-                record.attempts += 1; record.lastError = error.localizedDescription
-                if case .rejected = error {
+                record.attempts += 1
+                record.lastError = error.localizedDescription
+                switch error {
+                case .rejected:
                     record.state = .permanentlyFailed
-                } else if case .api(let code, _) = error, [4, 6, 7, 8, 9, 10, 13, 14, 15, 26].contains(code) {
+                    if record.attempts >= 3 { onStuck?(record.title) }
+                case .api(let code, _) where Self.permanentLastFMCodes.contains(code):
                     record.state = .permanentlyFailed
-                } else {
-                    // Use centralized retry policy to compute next attempt time and decide retryability.
-                    record.state = .pending
-                    let rateLimitDelay: TimeInterval = {
-                        if case .api(let code, _) = error, code == 29 { return 60 }
-                        return 0
-                    }()
-                    let backoff = ScrobbleRetryPolicy.shared.nextDelaySeconds(attempt: record.attempts)
-                    record.nextAttemptAt = max(now.addingTimeInterval(backoff), now.addingTimeInterval(rateLimitDelay))
-                    if !ScrobbleRetryPolicy.shared.shouldRetry(error: error, attempt: record.attempts) {
-                        record.state = .permanentlyFailed
-                    }
+                    if record.attempts >= 3 { onStuck?(record.title) }
+                case .retryLater(_, let minimumDelay):
+                    // A daily limit or future timestamp is expected to clear. Don't
+                    // announce it as stuck while the scheduled wait is still running.
+                    scheduleRetry(record, error: error, now: now, minimumDelay: minimumDelay, notifyIfStuck: false)
+                default:
+                    let rateLimitDelay: TimeInterval = if case .api(let code, _) = error, code == 29 { 60 } else { 0 }
+                    scheduleRetry(record, error: error, now: now, minimumDelay: rateLimitDelay, notifyIfStuck: true)
                 }
-                if record.attempts >= 3 { onStuck?(record.title) }
             } catch {
                 record.attempts += 1
-                record.state = .pending
                 record.lastError = Redactor.redact(error.localizedDescription)
-                let backoff = ScrobbleRetryPolicy.shared.nextDelaySeconds(attempt: record.attempts)
-                record.nextAttemptAt = now.addingTimeInterval(backoff)
-                if !ScrobbleRetryPolicy.shared.shouldRetry(error: error, attempt: record.attempts) {
-                    record.state = .permanentlyFailed
-                }
-                if record.attempts >= 3 { onStuck?(record.title) }
+                scheduleRetry(record, error: error, now: now, minimumDelay: 0, notifyIfStuck: true)
             }
             store.save()
         }
+    }
+
+    /// Last.fm API error codes that describe this account or request and will
+    /// not succeed if the same play is submitted again unchanged.
+    private static let permanentLastFMCodes: Set<Int> = [4, 6, 7, 8, 9, 10, 13, 14, 15, 26]
+
+    private func scheduleRetry(
+        _ record: ScrobbleRecord, error: any Error, now: Date, minimumDelay: TimeInterval, notifyIfStuck: Bool
+    ) {
+        record.state = .pending
+        let backoff = ScrobbleRetryPolicy.shared.nextDelaySeconds(attempt: record.attempts)
+        record.nextAttemptAt = now.addingTimeInterval(max(backoff, minimumDelay))
+        guard ScrobbleRetryPolicy.shared.shouldRetry(error: error, attempt: record.attempts) else {
+            record.state = .permanentlyFailed
+            onStuck?(record.title)
+            return
+        }
+        if notifyIfStuck, record.attempts >= 3 { onStuck?(record.title) }
     }
 
     func retryDate(attempts: Int, from date: Date) -> Date {

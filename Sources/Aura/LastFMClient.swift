@@ -1,14 +1,18 @@
+import AuraCore
 import CryptoKit
 import Foundation
 
-enum LastFMError: LocalizedError {
-    case missingCredentials, unauthenticated, invalidResponse, rejected(String), api(Int, String), transport(String)
+enum LastFMError: LocalizedError, Equatable {
+    case missingCredentials, unauthenticated, invalidResponse, rejected(String)
+    /// Last.fm refused this play for a reason that can clear. `after` is the minimum wait before another attempt.
+    case retryLater(String, after: TimeInterval)
+    case api(Int, String), transport(String)
     var errorDescription: String? {
         switch self {
         case .missingCredentials: "Enter a Last.fm API key and shared secret."
         case .unauthenticated: "Connect your Last.fm account."
         case .invalidResponse: "Last.fm returned an invalid response."
-        case .rejected(let message), .api(_, let message), .transport(let message): message
+        case .rejected(let message), .retryLater(let message, _), .api(_, let message), .transport(let message): message
         }
     }
 }
@@ -205,18 +209,15 @@ actor LastFMClient: Scrobbling, ScrobbleSubmitting {
     }
 
     static func validateScrobbleResponse(_ response: [String: Any]) throws {
-        guard let scrobbles = response["scrobbles"] as? [String: Any],
-            let attributes = scrobbles["@attr"] as? [String: Any]
-        else {
+        switch LastFMScrobbleResponse.interpret(response) {
+        case .accepted:
+            return
+        case .rejected(let message):
+            throw LastFMError.rejected(message)
+        case .retryLater(let message, let minimumDelay):
+            throw LastFMError.retryLater(message, after: minimumDelay)
+        case nil:
             throw LastFMError.invalidResponse
-        }
-        let accepted: Int? = {
-            if let value = attributes["accepted"] as? String { return Int(value) }
-            return attributes["accepted"] as? Int
-        }()
-        guard accepted == 1 else {
-            let ignoredMessage = ((scrobbles["scrobble"] as? [String: Any])?["ignoredMessage"] as? [String: Any])?["#text"] as? String
-            throw LastFMError.rejected(ignoredMessage?.isEmpty == false ? ignoredMessage! : "Last.fm did not accept the scrobble.")
         }
     }
 }

@@ -1,9 +1,10 @@
 # Aura design tokens
 
 These are the canonical values. They are mirrored in code by `BrandColors` /
-`BrandSpacing` / `BrandRadius` / `BrandTypography` in `Sources/Aura/Brand.swift` (macOS),
-by `CompanionBrand` / `CompanionSpacing` / `CompanionRadius` in `iOS/CompanionTheme.swift`,
-and by `WidgetBrand` in `WidgetExtension/AuraWidget.swift`, which cannot import either
+`BrandSpacing` / `BrandRadius` / `BrandMetrics` / `BrandTypography` in
+`Sources/Aura/Brand.swift` (macOS), by `CompanionBrand` / `CompanionSpacing` /
+`CompanionRadius` / `CompanionMetrics` in `iOS/CompanionTheme.swift`, and by
+`WidgetBrand` in `WidgetExtension/AuraWidget.swift`, which cannot import either
 app module. Change them here first, then in all three.
 
 ## Gradient
@@ -75,6 +76,30 @@ asked for at every call site. Nothing card-sized or larger is squarer than `radi
 Album art in the iPhone app's Last.fm views is the one deliberate exception at 3, which
 matches Last.fm's own near-square grid. Artist art is a true circle, never a rounded
 rectangle at half its frame.
+
+## Component
+
+The scales above answer "how far apart". These answer "how big is this particular
+thing" for the components that repeat on every screen. They exist because those
+measurements used to be literals at each call site, and the call sites drifted:
+four status-dot diameters, five capsule paddings, and seven card paddings, all
+describing the same component.
+
+- `status-dot`: 7 — the filled dot in front of a connection status label
+- `capsule-padding`: 9 horizontal / 5 vertical — the interior of a tinted status
+  or tag capsule
+- `tile-large`: 36 — the symbol tile on a card in a grid
+- `tile-medium`: 32 macOS / 30 iOS — the symbol tile on a list row or command result
+- `tile-small`: 28 — the symbol tile in the menu-bar panel
+- `card-padding`: 16 — a card's interior
+- `card-padding-compact`: 12 — a card in the menu-bar or sidebar column
+- `card-padding-spacious`: 24 — a panel-scale surface, such as an onboarding step
+- `title-detail`: 3 — between a heading and the caption directly beneath it
+- `card-content`: 12 — between the stacked blocks inside a card
+- `grid`: 14 — grid gutters, and the gap between sibling cards
+- `screen-padding`: 32 — the outer padding of a scrolling detail screen
+- `content-width`: 1040 — the measure each macOS detail screen centers content in
+- `row-trailing-column`: 124 — the trailing status-and-timestamp column of a list row
 
 ## Type
 

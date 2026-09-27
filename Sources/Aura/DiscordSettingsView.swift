@@ -111,7 +111,7 @@ struct DiscordSettingsSection: View {
     }
 
     private var profileControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
             HStack {
                 Menu(selectedProfileName) {
                     ForEach(preferences.availableDiscordProfiles) { profile in
@@ -197,13 +197,13 @@ private struct DiscordStatusPreview: View {
     let timer: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: BrandSpacing.xs) {
             Text("Preview").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             Text(firstLine).font(.headline).lineLimit(1)
             Text(secondLine).foregroundStyle(.secondary).lineLimit(1)
             Text("\(activity) \(activityName) · \(timer)").font(.caption).foregroundStyle(.tertiary)
         }
-        .padding(10)
+        .padding(BrandSpacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.quaternary, in: .rect(cornerRadius: BrandRadius.xs, style: .continuous))
         .accessibilityElement(children: .combine)

@@ -37,6 +37,9 @@ final class CompanionAppModel {
     private var cloud: CloudSubmissionCoordinator?
     private var pollTask: Task<Void, Never>?
     private var lastNowPlayingID: String?
+    /// Holds a play back after Last.fm refuses it. Capture polls about once a
+    /// second, which would otherwise resubmit a daily-limit failure immediately.
+    private var submissionNotBefore: [String: Date] = [:]
 
     var history: [CanonicalListen] {
         snapshot.listens.filter { $0.state != .dismissed }.sorted {
@@ -292,6 +295,7 @@ final class CompanionAppModel {
     }
 
     func approve(_ listen: CanonicalListen, refreshHistory: Bool = true) async {
+        submissionNotBefore.removeValue(forKey: listen.id)
         do {
             try await store.setState(.queued, for: listen.id); await reload();
             if let updated = history.first(where: { $0.id == listen.id }) {
@@ -481,19 +485,24 @@ final class CompanionAppModel {
 
     private func submit(_ listen: CanonicalListen, refreshHistory: Bool = true) async {
         guard !snapshot.privateMode, let cloud, let lastFM else { return }
+        if let notBefore = submissionNotBefore[listen.id], notBefore > .now { return }
         do {
             let lease = try await cloud.acquireLease(for: listen.id); try await store.setState(.submitting, for: listen.id)
             do {
                 try await lastFM.scrobble(listen.canonicalMetadata); let date = Date()
+                submissionNotBefore.removeValue(forKey: listen.id)
                 try await cloud.complete(lease, result: .accepted(date)); try await store.setState(.submitted, for: listen.id, submittedAt: date)
                 if refreshHistory { await refreshLastFMHistory() }
             } catch let rejection as CompanionLastFMError where rejection.isTerminal {
                 // Retrying cannot change the outcome, so the play stops here with
                 // the reason attached instead of cycling through the queue forever.
+                submissionNotBefore.removeValue(forKey: listen.id)
                 try? await cloud.complete(lease, result: .rejected(rejection.localizedDescription))
                 try await store.setState(.failed, for: listen.id, failureReason: rejection.localizedDescription)
                 throw rejection
             } catch {
+                let delay = (error as? CompanionLastFMError)?.retryDelay ?? 30
+                submissionNotBefore[listen.id] = Date().addingTimeInterval(delay)
                 try? await cloud.complete(lease, result: .deferred("Submission failed; retry is required.")); try await store.setState(.queued, for: listen.id)
                 throw error
             }
