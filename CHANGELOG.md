@@ -2,6 +2,10 @@
 
 ## 2.0.1 - Unreleased
 
+- Update Sparkle to 2.10.0, including its macOS 27 delta-update fix, and refresh the CodeQL and GitHub release actions.
+- Keep plays Last.fm refuses for a future timestamp or the daily scrobble limit in the retry queue. Filtered artists, filtered tracks, and timestamps that are already too old still stop. Mac and iPhone now share that decision.
+- Show the Pending Plays recovery banner only when a play has stopped retrying, so a shared outage or rate limit does not ask someone to review Last.fm settings.
+
 - Make Return run the first matching Quick Open command and Escape dismiss the palette.
 
 - Improve dark-mode contrast for playback card headings, the demo banner, and hero controls.

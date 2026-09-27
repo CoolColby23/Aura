@@ -7,17 +7,28 @@ enum CompanionLastFMError: LocalizedError {
     case configuration, unauthorized, invalidResponse, api(String)
     /// Last.fm refused this play for a reason that cannot change on a retry.
     case rejected(String)
+    /// Last.fm refused this play for a reason that can clear. `after` is the minimum wait.
+    case retryLater(String, after: TimeInterval)
     var errorDescription: String? {
         switch self {
         case .configuration: "Enter your Last.fm API credentials in Aura."
         case .unauthorized: "Connect Last.fm in Settings."
         case .invalidResponse: "Last.fm returned an invalid response."
-        case .api(let message), .rejected(let message): message
+        case .api(let message), .rejected(let message), .retryLater(let message, _): message
         }
     }
 
     /// True when resubmitting the same play cannot succeed.
     var isTerminal: Bool { if case .rejected = self { true } else { false } }
+
+    /// How long to wait before another attempt. Terminal refusals are not retried.
+    var retryDelay: TimeInterval? {
+        switch self {
+        case .retryLater(_, let after): after
+        case .rejected: nil
+        default: 30
+        }
+    }
 }
 
 struct CompanionLastFMTrack: Identifiable, Hashable, Sendable {
@@ -165,35 +176,15 @@ actor CompanionLastFMClient {
         if let album = metadata.album { parameters["album"] = album }
         if let duration = metadata.duration { parameters["duration"] = String(Int(duration)) }
         let response = try await call(method: "track.scrobble", parameters: parameters, sessionKey: sessionKey)
-        guard let scrobbles = response["scrobbles"] as? [String: Any],
-            let attributes = scrobbles["@attr"] as? [String: Any]
-        else { throw CompanionLastFMError.invalidResponse }
-        guard String(describing: attributes["accepted"] ?? "0") == "1" else {
-            let entry =
-                (scrobbles["scrobble"] as? [String: Any])
-                ?? (scrobbles["scrobble"] as? [[String: Any]])?.first
-            let ignored =
-                (entry?["ignoredMessage"] as? [String: Any])
-                ?? (entry?["ignoredmessage"] as? [String: Any])
-            let reason = (ignored?["#text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let code = String(describing: ignored?["code"] ?? "")
-            let fallback: String =
-                switch code {
-                case "1": "Last.fm filtered the artist."
-                case "2": "Last.fm filtered the track."
-                case "3": "This play is too old for Last.fm to accept."
-                case "4": "This play time is too far in the future."
-                case "5": "The Last.fm daily scrobble limit was reached."
-                default: "Last.fm did not accept the scrobble."
-                }
-            let message = reason?.isEmpty == false ? reason! : fallback
-            // Codes 1-3 describe this play itself: a filtered artist or track, or
-            // a timestamp already outside Last.fm's accepted window. Resubmitting
-            // is guaranteed to fail again. Code 4 (timestamp in the future) and
-            // code 5 (daily limit) both clear with time, so they stay retryable.
-            throw ["1", "2", "3"].contains(code)
-                ? CompanionLastFMError.rejected(message)
-                : CompanionLastFMError.api(message)
+        switch LastFMScrobbleResponse.interpret(response) {
+        case .accepted:
+            return
+        case .rejected(let message):
+            throw CompanionLastFMError.rejected(message)
+        case .retryLater(let message, let minimumDelay):
+            throw CompanionLastFMError.retryLater(message, after: minimumDelay)
+        case nil:
+            throw CompanionLastFMError.invalidResponse
         }
     }
 

@@ -103,6 +103,18 @@ final class CompanionReliabilityTests: XCTestCase {
         XCTAssertEqual(Set(dates).count, 97)
     }
 
+    func testRetryDelayFollowsTheSharedLastFMDecision() {
+        let dailyLimit = CompanionLastFMError.retryLater(
+            "The Last.fm daily scrobble limit was reached.",
+            after: LastFMScrobbleResponse.dailyLimitDelay
+        )
+        XCTAssertEqual(dailyLimit.retryDelay, LastFMScrobbleResponse.dailyLimitDelay)
+        XCTAssertFalse(dailyLimit.isTerminal)
+        XCTAssertNil(CompanionLastFMError.rejected("Last.fm filtered the artist.").retryDelay)
+        XCTAssertTrue(CompanionLastFMError.rejected("Last.fm filtered the artist.").isTerminal)
+        XCTAssertEqual(CompanionLastFMError.api("Last.fm is busy. Aura will retry automatically.").retryDelay, 30)
+    }
+
     func testHistoryExpansionHonorsIncrementalScanCursor() {
         let newest = Date(timeIntervalSince1970: 10_000)
         let dates = AppleMusicEvidenceSource.inferredPlayDates(

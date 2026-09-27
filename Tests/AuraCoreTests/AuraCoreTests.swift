@@ -57,6 +57,50 @@ struct AuraCoreTests {
         #expect(EvidenceReducer.add(duplicate, to: listen).evidence.count == 1)
     }
 
+    @Test func lastFMScrobbleRefusalsSeparatePermanentFiltersFromWaits() {
+        #expect(
+            LastFMScrobbleResponse.interpret([
+                "scrobbles": ["@attr": ["accepted": "1", "ignored": "0"]]
+            ]) == .accepted)
+        #expect(
+            LastFMScrobbleResponse.interpret([
+                "scrobbles": [
+                    "@attr": ["accepted": 0, "ignored": 1],
+                    "scrobble": ["ignoredMessage": ["code": "3", "#text": "Timestamp too old"]],
+                ]
+            ]) == .rejected("Timestamp too old"))
+        #expect(
+            LastFMScrobbleResponse.interpret([
+                "scrobbles": [
+                    "@attr": ["accepted": "0", "ignored": "1"],
+                    "scrobble": [["ignoredMessage": ["code": "1", "#text": ""]]],
+                ]
+            ]) == .rejected("Last.fm filtered the artist."))
+        #expect(
+            LastFMScrobbleResponse.interpret([
+                "scrobbles": [
+                    "@attr": ["accepted": "0"],
+                    "scrobble": ["ignoredmessage": ["code": 4]],
+                ]
+            ])
+                == .retryLater(
+                    message: "This play time is too far in the future.",
+                    minimumDelay: LastFMScrobbleResponse.futureTimestampDelay))
+        #expect(
+            LastFMScrobbleResponse.interpret([
+                "scrobbles": [
+                    "@attr": ["accepted": "0", "ignored": "1"],
+                    "scrobble": [
+                        "ignoredMessage": ["code": "5", "#text": "Daily scrobble limit exceeded"]
+                    ],
+                ]
+            ])
+                == .retryLater(
+                    message: "Daily scrobble limit exceeded",
+                    minimumDelay: LastFMScrobbleResponse.dailyLimitDelay))
+        #expect(LastFMScrobbleResponse.interpret(["unexpected": true]) == nil)
+    }
+
     @Test func lastFMSignatureIsStable() {
         let signature = LastFMRequestBuilder.signature(parameters: ["method": "track.scrobble", "api_key": "key"], secret: "secret")
         #expect(signature.count == 32)

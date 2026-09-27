@@ -1127,11 +1127,27 @@ struct SecurityTests {
     }
 
     @Test func lastFMIgnoredScrobbleIsReported() {
-        #expect(throws: LastFMError.self) {
+        #expect(throws: LastFMError.rejected("Timestamp too old")) {
             try LastFMClient.validateScrobbleResponse([
                 "scrobbles": [
                     "@attr": ["accepted": "0", "ignored": "1"],
-                    "scrobble": ["ignoredMessage": ["#text": "Timestamp too old"]],
+                    "scrobble": ["ignoredMessage": ["code": "3", "#text": "Timestamp too old"]],
+                ]
+            ])
+        }
+    }
+
+    @Test func lastFMDailyLimitStaysRetryable() {
+        #expect(
+            throws: LastFMError.retryLater(
+                "The Last.fm daily scrobble limit was reached.",
+                after: LastFMScrobbleResponse.dailyLimitDelay
+            )
+        ) {
+            try LastFMClient.validateScrobbleResponse([
+                "scrobbles": [
+                    "@attr": ["accepted": "0", "ignored": "1"],
+                    "scrobble": ["ignoredMessage": ["code": "5"]],
                 ]
             ])
         }
@@ -1403,6 +1419,40 @@ struct PersistenceAndQueueTests {
         let record = try #require(store.context.fetch(FetchDescriptor<ScrobbleRecord>()).first)
         #expect(record.state == .permanentlyFailed)
         #expect(record.attempts == 1)
+    }
+
+    @Test func dailyScrobbleLimitStaysQueuedUntilTheLimitCanClear() async throws {
+        let store = try PersistenceStore(inMemory: true)
+        store.enqueue(session())
+        let pending = try #require(store.context.fetch(FetchDescriptor<ScrobbleRecord>()).first)
+        pending.nextAttemptAt = .distantPast
+        let now = Date(timeIntervalSince1970: 2_000)
+        var stuckAnnouncements = 0
+        let queue = ScrobbleQueue(
+            store: store,
+            client: FailingSubmitter(
+                error: .retryLater(
+                    "The Last.fm daily scrobble limit was reached.",
+                    after: LastFMScrobbleResponse.dailyLimitDelay
+                )),
+            now: { now }
+        )
+        queue.onStuck = { _ in stuckAnnouncements += 1 }
+        await queue.process()
+        #expect(pending.state == .pending)
+        #expect(pending.attempts == 1)
+        #expect(pending.nextAttemptAt == now.addingTimeInterval(LastFMScrobbleResponse.dailyLimitDelay))
+        #expect(stuckAnnouncements == 0)
+    }
+
+    @Test func filteredScrobbleStopsRetrying() async throws {
+        let store = try PersistenceStore(inMemory: true)
+        store.enqueue(session())
+        let queue = ScrobbleQueue(store: store, client: FailingSubmitter(error: .rejected("Last.fm filtered the artist.")))
+        await queue.process()
+        let record = try #require(store.context.fetch(FetchDescriptor<ScrobbleRecord>()).first)
+        #expect(record.state == .permanentlyFailed)
+        #expect(record.lastError == "Last.fm filtered the artist.")
     }
 
     @Test func transportFailureRemainsQueued() async throws {

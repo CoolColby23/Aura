@@ -9,7 +9,7 @@ let package = Package(
         .executable(name: "Aura", targets: ["Aura"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.2")
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.0")
     ],
     targets: [
         .target(name: "AuraCore", path: "Sources/AuraCore"),

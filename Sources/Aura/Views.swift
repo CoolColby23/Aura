@@ -697,11 +697,12 @@ struct QueueView: View {
     @State private var confirmingRetryAll = false
     @State private var confirmingRemoveBlocked = false
     var body: some View {
+        let bannerMessage = blockedCount > 0 ? commonError : nil
         VStack(spacing: 0) {
-            if let commonError {
+            if let bannerMessage {
                 QueueRecoveryBanner(
-                    count: queuedRecords.count,
-                    message: commonError,
+                    count: blockedCount,
+                    message: bannerMessage,
                     action: { model.openSettings(.integrations) }
                 )
                 Divider()
@@ -719,7 +720,10 @@ struct QueueView: View {
                     .listRowSeparator(.hidden)
                 }
                 ForEach(visibleRecords) { record in
-                    QueueRow(record: record, showsInlineError: record.lastError != commonError) {
+                    QueueRow(
+                        record: record,
+                        showsInlineError: record.state != .permanentlyFailed || record.lastError != bannerMessage
+                    ) {
                         queueActions(for: record)
                     }
                     .listRowSeparator(.visible)
@@ -965,7 +969,7 @@ private struct QueueRow<Actions: View>: View {
                 if showsInlineError, let error = record.lastError {
                     Text(error)
                         .font(.caption)
-                        .foregroundStyle(BrandColors.error)
+                        .foregroundStyle(record.state == .permanentlyFailed ? BrandColors.error : .secondary)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
