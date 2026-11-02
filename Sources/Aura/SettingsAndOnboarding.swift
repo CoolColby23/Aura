@@ -42,15 +42,18 @@ struct OnboardingView: View {
 
             HStack {
                 if step > 0 {
+                    // Escape steps back during first-run setup; once setup is
+                    // complete it closes the guide instead (see the Close button).
                     Button("Back") { go(to: step - 1) }
                         .auraButton()
-                        .keyboardShortcut(.cancelAction)
+                        .keyboardShortcut(preferences.onboardingComplete ? nil : .cancelAction)
                 }
                 Spacer()
                 if step < steps.count - 1 {
                     Button(step == 0 ? "Get Started" : "Continue") { go(to: step + 1) }
                         .auraButton(prominent: true)
                         .keyboardShortcut(.defaultAction)
+                        .disabled(!canContinue)
                 } else {
                     Button("Start Using Aura", action: finish)
                         .auraButton(prominent: true)
@@ -90,6 +93,7 @@ struct OnboardingView: View {
                 Spacer()
                 if preferences.onboardingComplete {
                     Button("Close", systemImage: "xmark") { model.onboardingPresented = false }
+                        .keyboardShortcut(.cancelAction)
                         .labelStyle(.iconOnly)
                         .auraButton()
                         .buttonBorderShape(.circle)
@@ -117,13 +121,20 @@ struct OnboardingView: View {
                 symbol: "music.note",
                 text: "Aura only watches the ones you pick. Apple Music asks for permission the first time."
             ) {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: BrandSpacing.sm) {
-                    ForEach(PlaybackProviderID.allCases) { provider in
-                        SelectableCard(
-                            title: provider.displayName,
-                            detail: providerDetail(provider),
-                            isOn: providerBinding(provider)
-                        )
+                VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: BrandSpacing.sm) {
+                        ForEach(PlaybackProviderID.allCases) { provider in
+                            SelectableCard(
+                                title: provider.displayName,
+                                detail: providerDetail(provider),
+                                isOn: providerBinding(provider)
+                            )
+                        }
+                    }
+                    if selectedProviders.isEmpty {
+                        Text("Pick at least one app to continue.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -235,6 +246,12 @@ struct OnboardingView: View {
                 sweeping: true
             )
         }
+    }
+
+    /// Aura has nothing to watch without at least one player, so the player
+    /// step cannot be passed with every card switched off.
+    private var canContinue: Bool {
+        step != 1 || !selectedProviders.isEmpty
     }
 
     private func go(to newStep: Int) {

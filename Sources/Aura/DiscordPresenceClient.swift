@@ -239,6 +239,8 @@ actor DiscordPresenceClient: PresencePublishing {
             roots = [environment["XDG_RUNTIME_DIR"], environment["TMPDIR"], environment["TMP"], environment["TEMP"], "/tmp"].compactMap { $0 }
         }
         var seen = Set<String>()
-        return roots.filter { seen.insert($0).inserted }.flatMap { root in (0...9).map { URL(fileURLWithPath: root).appendingPathComponent("discord-ipc-\($0)").path } }
+        return roots.filter { seen.insert($0).inserted }.flatMap { root in
+            (0...9).map { URL(fileURLWithPath: root).appendingPathComponent("discord-ipc-\($0)").path }
+        }
     }
 }

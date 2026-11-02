@@ -155,7 +155,9 @@ struct DiscordCustomizationTests {
     }
 
     @Test func durationLabelsMatchDiscordProgressRounding() {
-        #expect(DiscordTemplate.render("{position} / {duration}", title: "", artist: "", album: "", platform: .appleMusic, position: 82.8, duration: 230.9) == "1:22 / 3:50")
+        #expect(
+            DiscordTemplate.render("{position} / {duration}", title: "", artist: "", album: "", platform: .appleMusic, position: 82.8, duration: 230.9)
+                == "1:22 / 3:50")
         #expect(DiscordTemplate.render("{position}", title: "", artist: "", album: "", platform: .appleMusic, position: -1e100) == "0:00")
     }
 

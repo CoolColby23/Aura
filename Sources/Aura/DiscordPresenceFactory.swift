@@ -37,17 +37,21 @@ enum DiscordPresenceFactory {
         }
         let showsDuration = session.track.supportsFiniteProgress && preferences.discordTimerStyle != .hidden
         let supportsTimer = snapshot.state == .playing && showsDuration
-        let startedAt = supportsTimer && (preferences.discordTimerStyle == .elapsed || preferences.discordTimerStyle == .progress)
+        let startedAt =
+            supportsTimer && (preferences.discordTimerStyle == .elapsed || preferences.discordTimerStyle == .progress)
             ? now.addingTimeInterval(-position) : nil
-        let endsAt = supportsTimer && (preferences.discordTimerStyle == .remaining || preferences.discordTimerStyle == .progress)
+        let endsAt =
+            supportsTimer && (preferences.discordTimerStyle == .remaining || preferences.discordTimerStyle == .progress)
             ? now.addingTimeInterval(session.track.duration - position) : nil
         var state = render(stateTemplate)
         if showsDuration, !stateTemplate.contains("{duration}"), (isPaused || !lineOne.contains("{duration}")) {
-            let timing = isPaused && !stateTemplate.contains("{position}")
+            let timing =
+                isPaused && !stateTemplate.contains("{position}")
                 ? render("{position} / {duration}") : render("{duration}")
             state = [state, timing].filter { !$0.isEmpty }.joined(separator: " · ")
         }
-        let smallImageTemplate = isPaused && preferences.discordSmallImageText == "Playing on {platform}"
+        let smallImageTemplate =
+            isPaused && preferences.discordSmallImageText == "Playing on {platform}"
             ? "Paused on {platform}" : preferences.discordSmallImageText
 
         return DiscordPresence(

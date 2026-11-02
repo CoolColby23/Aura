@@ -291,66 +291,15 @@ struct ListeningHistoryView: View {
     @ViewBuilder
     private var insights: some View {
         let insights = extendedInsights
-        LazyVGrid(columns: twoColumns, alignment: .leading, spacing: BrandMetrics.gridSpacing) {
-            ChartSurface(title: "Top tracks") {
-                if insights.topTracks.isEmpty {
-                    emptyInsight
-                } else {
-                    RankedList(items: insights.topTracks)
-                }
+        // Two columns when the pane is wide enough for both minimums, one
+        // otherwise: at the window's minimum width the pane is narrower than two
+        // 260-point columns, and a fixed two-column grid ran off the edge.
+        ViewThatFits(in: .horizontal) {
+            LazyVGrid(columns: twoColumns, alignment: .leading, spacing: BrandMetrics.gridSpacing) {
+                insightCards(insights)
             }
-            ChartSurface(title: "Top albums") {
-                if insights.topAlbums.isEmpty {
-                    emptyInsight
-                } else {
-                    RankedList(items: insights.topAlbums)
-                }
-            }
-            ChartSurface(title: "Listening by hour", caption: peakHourCaption(insights)) {
-                Chart(insights.hourlyCounts) { item in
-                    BarMark(x: .value("Hour", item.hour), y: .value("Listens", item.plays))
-                        .foregroundStyle(theme.primaryColor.gradient)
-                        .clipShape(.rect(cornerRadius: 3, style: .continuous))
-                }
-                .chartXAxis {
-                    AxisMarks(values: [0, 6, 12, 18, 23]) { value in
-                        AxisValueLabel {
-                            if let hour = value.as(Int.self) { Text(hourLabel(hour)) }
-                        }
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
-                        AxisGridLine().foregroundStyle(BrandColors.hairline)
-                        AxisValueLabel()
-                    }
-                }
-                .frame(height: 150)
-                .accessibilityLabel(hourlyAccessibilitySummary(insights))
-            }
-            ChartSurface(title: "Music apps") {
-                if insights.platformCounts.isEmpty {
-                    emptyInsight
-                } else {
-                    VStack(spacing: BrandSpacing.md) {
-                        ForEach(insights.platformCounts) { item in
-                            VStack(spacing: BrandSpacing.xs) {
-                                HStack {
-                                    Text(item.platform).font(.callout.weight(.medium))
-                                    Spacer()
-                                    Text(item.plays.formatted())
-                                        .font(.callout.monospacedDigit())
-                                        .foregroundStyle(.secondary)
-                                }
-                                AuraProgressBar(
-                                    value: Double(item.plays),
-                                    total: Double(max(insights.comparison.current.listens, 1))
-                                )
-                            }
-                            .accessibilityElement(children: .combine)
-                        }
-                    }
-                }
+            LazyVGrid(columns: oneColumn, alignment: .leading, spacing: BrandMetrics.gridSpacing) {
+                insightCards(insights)
             }
         }
         Text(
@@ -360,11 +309,79 @@ struct ListeningHistoryView: View {
         .foregroundStyle(.secondary)
     }
 
+    @ViewBuilder
+    private func insightCards(_ insights: ExtendedListeningInsights) -> some View {
+        ChartSurface(title: "Top tracks") {
+            if insights.topTracks.isEmpty {
+                emptyInsight
+            } else {
+                RankedList(items: insights.topTracks)
+            }
+        }
+        ChartSurface(title: "Top albums") {
+            if insights.topAlbums.isEmpty {
+                emptyInsight
+            } else {
+                RankedList(items: insights.topAlbums)
+            }
+        }
+        ChartSurface(title: "Listening by hour", caption: peakHourCaption(insights)) {
+            Chart(insights.hourlyCounts) { item in
+                BarMark(x: .value("Hour", item.hour), y: .value("Listens", item.plays))
+                    .foregroundStyle(theme.primaryColor.gradient)
+                    .clipShape(.rect(cornerRadius: 3, style: .continuous))
+            }
+            .chartXAxis {
+                AxisMarks(values: [0, 6, 12, 18, 23]) { value in
+                    AxisValueLabel {
+                        if let hour = value.as(Int.self) { Text(hourLabel(hour)) }
+                    }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
+                    AxisGridLine().foregroundStyle(BrandColors.hairline)
+                    AxisValueLabel()
+                }
+            }
+            .frame(height: 150)
+            .accessibilityLabel(hourlyAccessibilitySummary(insights))
+        }
+        ChartSurface(title: "Music apps") {
+            if insights.platformCounts.isEmpty {
+                emptyInsight
+            } else {
+                VStack(spacing: BrandSpacing.md) {
+                    ForEach(insights.platformCounts) { item in
+                        VStack(spacing: BrandSpacing.xs) {
+                            HStack {
+                                Text(item.platform).font(.callout.weight(.medium))
+                                Spacer()
+                                Text(item.plays.formatted())
+                                    .font(.callout.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            AuraProgressBar(
+                                value: Double(item.plays),
+                                total: Double(max(insights.comparison.current.listens, 1))
+                            )
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+        }
+    }
+
     private var emptyInsight: some View {
         Text("No played tracks in this period.")
             .font(.callout)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+    }
+
+    private var oneColumn: [GridItem] {
+        [GridItem(.flexible(), spacing: BrandMetrics.gridSpacing, alignment: .top)]
     }
 
     private var twoColumns: [GridItem] {

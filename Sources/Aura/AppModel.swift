@@ -186,7 +186,7 @@ final class AppModel {
                 // second update so a catalog lookup never delays the song transition.
                 await updateDiscord()
                 if changedTrack, !demoModeEnabled {
-                    artworkTask = Task { [weak self] in
+                    artworkTask = Task { [weak self = self] in
                         await self?.updateArtwork(for: value.track)
                     }
                 }
@@ -237,7 +237,7 @@ final class AppModel {
     func retryCurrentArtwork() {
         guard let track = snapshot.track else { return }
         artworkTask?.cancel()
-        artworkTask = Task { [weak self] in
+        artworkTask = Task { [weak self = self] in
             guard let self else { return }
             self.artworkLoadState = .loading
             await self.artwork.invalidateArtwork(for: track.identity)

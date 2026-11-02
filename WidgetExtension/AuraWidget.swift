@@ -242,12 +242,14 @@ private struct AuraWidgetView: View {
             Spacer(minLength: 6)
             Text("You’re private")
                 .font(.system(.headline, design: .rounded).weight(.semibold))
-            Text(family == .systemMedium
-                ? "Discord presence is cleared and Last.fm updates are paused."
-                : "Listening details are hidden.")
-                .font(.system(.caption, design: .rounded))
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
+            Text(
+                family == .systemMedium
+                    ? "Discord presence is cleared and Last.fm updates are paused."
+                    : "Listening details are hidden."
+            )
+            .font(.system(.caption, design: .rounded))
+            .foregroundStyle(.secondary)
+            .lineLimit(3)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }

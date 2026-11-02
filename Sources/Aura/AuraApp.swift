@@ -34,9 +34,11 @@ struct AuraApp: App {
                 DashboardView()
                     .environment(model)
                     .environment(updateManager)
+                    .modifier(AuraDeepLinkHandler(model: model))
             }
         }
         .defaultSize(width: 1100, height: 760)
+        .handlesExternalEvents(matching: [AuraDeepLink.scheme])
         .modelContainer(model.store.container)
 
         MenuBarExtra {
@@ -115,6 +117,43 @@ extension NSApplication {
             openWindow(id: "dashboard")
         }
         activate(ignoringOtherApps: true)
+    }
+}
+
+/// Deep links into the Mac app, such as `aura://now-playing` from the widget.
+enum AuraDeepLink: Equatable {
+    static let scheme = "aura"
+
+    case nowPlaying
+
+    init?(url: URL) {
+        guard url.scheme?.lowercased() == Self.scheme else { return nil }
+        // Accept both `aura://now-playing` (host) and `aura:now-playing` (path).
+        let target = (url.host() ?? url.path()).trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
+        switch target {
+        case "now-playing": self = .nowPlaying
+        default: return nil
+        }
+    }
+}
+
+private struct AuraDeepLinkHandler: ViewModifier {
+    @Environment(\.openWindow) private var openWindow
+    let model: AppModel
+
+    func body(content: Content) -> some View {
+        content
+            // Reuse the existing dashboard window instead of opening a new one per link.
+            .handlesExternalEvents(preferring: [AuraDeepLink.scheme], allowing: ["*"])
+            .onOpenURL { url in
+                guard let link = AuraDeepLink(url: url) else { return }
+                switch link {
+                case .nowPlaying:
+                    model.commandPalettePresented = false
+                    model.navigate(to: .nowPlaying)
+                }
+                NSApp.showDashboard(using: openWindow)
+            }
     }
 }
 

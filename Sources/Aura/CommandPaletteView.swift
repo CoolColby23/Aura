@@ -7,6 +7,9 @@ struct CommandPaletteView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var query = ""
     @State private var selectedID: String?
+    /// Set only by the arrow keys. Hovering also moves the selection, but it
+    /// must not scroll the list out from under the pointer.
+    @State private var scrollTarget: String?
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -65,7 +68,7 @@ struct CommandPaletteView: View {
                     }
                     .padding(BrandSpacing.sm)
                 }
-                .onChange(of: selectedID) { _, id in
+                .onChange(of: scrollTarget) { _, id in
                     guard let id else { return }
                     withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id) }
                 }
@@ -143,6 +146,7 @@ struct CommandPaletteView: View {
         let index = current.flatMap { current in results.firstIndex { $0.id == current.id } } ?? 0
         let next = min(max(index + offset, 0), results.count - 1)
         selectedID = results[next].id
+        scrollTarget = results[next].id
     }
 
     private struct ResultGroup {

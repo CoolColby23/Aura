@@ -62,7 +62,8 @@ actor PlaybackSessionTracker {
             track.duration > 30
         {
             let gap = snapshot.observedAt.timeIntervalSince(lastObservedAt)
-            repeatedTrack = gap >= 0 && gap <= 15
+            repeatedTrack =
+                gap >= 0 && gap <= 15
                 && session.lastPosition >= track.duration - 10
                 && snapshot.position <= 10
                 && session.lastPosition - snapshot.position > track.duration / 2

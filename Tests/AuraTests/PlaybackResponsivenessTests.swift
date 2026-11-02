@@ -21,9 +21,11 @@ struct PlaybackResponsivenessTests {
         let oldTrack = track("old", artwork: .remote(oldURL))
         let newTrack = track("new", artwork: nil)
         let provider = SwitchingPlaybackProvider(track: oldTrack)
-        let pollingClock = ClosureAppClock(now: { Date() }, sleep: { _ in
-            try await Task.sleep(for: .milliseconds(10))
-        })
+        let pollingClock = ClosureAppClock(
+            now: { Date() },
+            sleep: { _ in
+                try await Task.sleep(for: .milliseconds(10))
+            })
         let monitor = PlaybackMonitor(credentials: CredentialStore(), clock: pollingClock, providers: [.spotify: provider])
         let image = NSImage(size: NSSize(width: 2, height: 2))
         image.lockFocus()
@@ -32,19 +34,21 @@ struct PlaybackResponsivenessTests {
         image.unlockFocus()
         let bitmap = try #require(image.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:)))
         let imageData = try #require(bitmap.representation(using: .png, properties: [:]))
-        let artwork = ArtworkService(directory: directory, fetch: { request in
-            let url = try #require(request.url)
-            let body: Data
-            if url == oldURL {
-                // Deliberately ignore cancellation until released: some transports
-                // finish an old request after the player has already moved on.
-                await stalled.wait()
-                body = imageData
-            } else {
-                body = Data(#"{"results":[]}"#.utf8)
-            }
-            return (body, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
-        })
+        let artwork = ArtworkService(
+            directory: directory,
+            fetch: { request in
+                let url = try #require(request.url)
+                let body: Data
+                if url == oldURL {
+                    // Deliberately ignore cancellation until released: some transports
+                    // finish an old request after the player has already moved on.
+                    await stalled.wait()
+                    body = imageData
+                } else {
+                    body = Data(#"{"results":[]}"#.utf8)
+                }
+                return (body, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            })
         let model = AppModel(
             store: try PersistenceStore(inMemory: true), preferences: preferences,
             notifications: NotificationCoordinator(delivery: ResponsivenessNotificationDelivery()),

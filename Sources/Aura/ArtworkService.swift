@@ -170,7 +170,8 @@ actor ArtworkService {
         let key = cacheKey(for: track.identity)
         guard !Task.isCancelled else { return nil }
         if let directURL = Self.directPublicArtworkURL(for: track),
-            shouldTryPlayerURL(directURL, key: key) {
+            shouldTryPlayerURL(directURL, key: key)
+        {
             return directURL
         }
         if let cached = catalogURLs[key] { return cached }

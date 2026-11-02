@@ -32,10 +32,14 @@ struct DiscordSettingsSections: View {
         } header: {
             Text("Rich Presence")
         } footer: {
-            Text("Keep Discord Desktop open and enable activity sharing under User Settings → Activity Privacy in Discord. Aura connects automatically; no Discord login is needed.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Link("Discord activity sharing help", destination: URL(string: "https://support.discord.com/hc/en-us/articles/7931156448919-Activity-Sharing-on-Discord-FAQ")!)
+            Text(
+                "Keep Discord Desktop open and enable activity sharing under User Settings → Activity Privacy in Discord. Aura connects automatically; no Discord login is needed."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            Link(
+                "Discord activity sharing help",
+                destination: URL(string: "https://support.discord.com/hc/en-us/articles/7931156448919-Activity-Sharing-on-Discord-FAQ")!)
         }
 
         Section {
@@ -149,9 +153,11 @@ struct DiscordSettingsSections: View {
         } header: {
             Text("Timing")
         } footer: {
-            Text("Song progress includes the full track length. While paused, the song position stays fixed and the song progress bar disappears. Discord may show its own activity counter. Hidden turns off automatic timing.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                "Song progress includes the full track length. While paused, the song position stays fixed and the song progress bar disappears. Discord may show its own activity counter. Hidden turns off automatic timing."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
 
         Section {
@@ -174,9 +180,11 @@ struct DiscordSettingsSections: View {
         } header: {
             Text("Images")
         } footer: {
-            Text("Album art uses the player’s cover first, then a matching Apple catalog cover. Aura’s icon appears on Discord when no public cover is available. Local artwork stays on your Mac.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text(
+                "Album art uses the player’s cover first, then a matching Apple catalog cover. Aura’s icon appears on Discord when no public cover is available. Local artwork stays on your Mac."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
 
         Section {

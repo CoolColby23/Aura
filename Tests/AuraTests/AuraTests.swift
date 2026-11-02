@@ -65,8 +65,9 @@ struct PlaybackSessionTests {
     @Test func startingAfterThresholdEmitsEligibilityForSubmission() async {
         let tracker = PlaybackSessionTracker()
         let events = await tracker.ingest(
-            .init(track: track, state: .playing, position: 60,
-                  observedAt: Date(timeIntervalSince1970: 1_000), confidence: .high))
+            .init(
+                track: track, state: .playing, position: 60,
+                observedAt: Date(timeIntervalSince1970: 1_000), confidence: .high))
         #expect(events.count == 2)
         #expect(events.contains { if case .started = $0 { true } else { false } })
         #expect(events.contains { if case .eligible = $0 { true } else { false } })
@@ -392,19 +393,23 @@ struct ArtworkTests {
             artworkReference: .remote(playerURL), platform: .spotify
         )
         let requests = ArtworkRequestRecorder()
-        let service = ArtworkService(directory: directory, fetch: { request in
-            let url = try #require(request.url)
-            await requests.record(url)
-            if url == playerURL {
-                return (Data(), try #require(HTTPURLResponse(url: url, statusCode: playerStatus, httpVersion: nil, headerFields: nil)))
-            }
-            if url.host == "itunes.apple.com" {
-                let payload = Data(#"{"results":[{"trackName":"Track","artistName":"Artist","collectionName":"Album","artworkUrl100":"https://catalog.example/100x100bb.jpg"}]}"#.utf8)
-                return (payload, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
-            }
-            #expect(url == coverURL)
-            return (image, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
-        })
+        let service = ArtworkService(
+            directory: directory,
+            fetch: { request in
+                let url = try #require(request.url)
+                await requests.record(url)
+                if url == playerURL {
+                    return (Data(), try #require(HTTPURLResponse(url: url, statusCode: playerStatus, httpVersion: nil, headerFields: nil)))
+                }
+                if url.host == "itunes.apple.com" {
+                    let payload = Data(
+                        #"{"results":[{"trackName":"Track","artistName":"Artist","collectionName":"Album","artworkUrl100":"https://catalog.example/100x100bb.jpg"}]}"#
+                            .utf8)
+                    return (payload, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+                }
+                #expect(url == coverURL)
+                return (image, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            })
         let result = await service.artworkResult(for: track)
         #expect(result?.data == image)
         #expect(result?.source == .appleCatalog)
@@ -415,13 +420,18 @@ struct ArtworkTests {
         await service.invalidateArtwork(for: track.identity)
         #expect(await service.publicArtworkURL(for: track) == playerURL)
 
-        let brokenCatalog = ArtworkService(directory: directory.appendingPathComponent("broken"), fetch: { request in
-            let url = try #require(request.url)
-            let body = url.host == "itunes.apple.com"
-                ? Data(#"{"results":[{"trackName":"Track","artistName":"Artist","collectionName":"Album","artworkUrl100":"https://catalog.example/100x100bb.jpg"}]}"#.utf8)
-                : Data("invalid image".utf8)
-            return (body, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
-        })
+        let brokenCatalog = ArtworkService(
+            directory: directory.appendingPathComponent("broken"),
+            fetch: { request in
+                let url = try #require(request.url)
+                let body =
+                    url.host == "itunes.apple.com"
+                    ? Data(
+                        #"{"results":[{"trackName":"Track","artistName":"Artist","collectionName":"Album","artworkUrl100":"https://catalog.example/100x100bb.jpg"}]}"#
+                            .utf8)
+                    : Data("invalid image".utf8)
+                return (body, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            })
         #expect(await brokenCatalog.artworkResult(for: track) == nil)
         #expect(await brokenCatalog.publicArtworkURL(for: track) == nil)
     }
@@ -436,11 +446,13 @@ struct ArtworkTests {
             album: nil, duration: 180, source: .localFile, appleMusicURL: nil,
             artworkReference: nil, platform: .spotify
         )
-        let service = ArtworkService(directory: directory, clock: clock, fetch: { request in
-            let url = try #require(request.url)
-            await requests.record(url)
-            return (Data(#"{"results":[]}"#.utf8), try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
-        })
+        let service = ArtworkService(
+            directory: directory, clock: clock,
+            fetch: { request in
+                let url = try #require(request.url)
+                await requests.record(url)
+                return (Data(#"{"results":[]}"#.utf8), try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            })
         #expect(await service.artworkResult(for: track) == nil)
         #expect(await service.publicArtworkURL(for: track) == nil)
         #expect(await requests.count == 1)
