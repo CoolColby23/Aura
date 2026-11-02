@@ -3,13 +3,14 @@ import CloudKit
 import Foundation
 
 enum CloudCoordinationError: LocalizedError {
-    case unavailable, privateMode, accountMismatch, leaseHeld
+    case unavailable, privateMode, accountMismatch, leaseHeld, alreadySubmitted(Date)
     var errorDescription: String? {
         switch self {
         case .unavailable: "Cloud coordination is unavailable. The scrobble remains queued."
         case .privateMode: "Private Mode prevents submission."
         case .accountMismatch: "Mac and iPhone must use the same Last.fm account."
         case .leaseHeld: "Another device is submitting this listen."
+        case .alreadySubmitted: "This listen was already submitted from another device."
         }
     }
 }
@@ -28,24 +29,30 @@ actor CloudSubmissionCoordinator: SubmissionCoordinator {
 
     func prepare() async throws {
         guard let database else { if localOnly { return }; throw CloudCoordinationError.unavailable }
-        _ = try? await database.save(CKRecordZone(zoneID: Self.zoneID))
+        _ = try await database.save(CKRecordZone(zoneID: Self.zoneID))
         let gateID = CKRecord.ID(recordName: "global", zoneID: Self.zoneID)
-        if (try? await database.record(for: gateID)) == nil {
+        do {
+            _ = try await database.record(for: gateID)
+        } catch let error as CKError where error.code == .unknownItem {
             let gate = CKRecord(recordType: "SubmissionGate", recordID: gateID)
             gate["generation"] = 1 as CKRecordValue; gate["privateMode"] = false as CKRecordValue
-            _ = try? await database.save(gate)
+            _ = try await database.save(gate)
         }
     }
 
     func sync(evidence: PlaybackEvidence, listen: CanonicalListen) async throws {
         guard let database else { if localOnly { return }; throw CloudCoordinationError.unavailable }
         let recordID = CKRecord.ID(recordName: listen.id, zoneID: Self.zoneID)
-        let record = (try? await database.record(for: recordID)) ?? CKRecord(recordType: "Listen", recordID: recordID)
+        let record = try await fetchOrCreate(recordType: "Listen", id: recordID, database: database)
         record["title"] = listen.canonicalMetadata.title as CKRecordValue
         record["artist"] = listen.canonicalMetadata.artist as CKRecordValue
         record["album"] = listen.canonicalMetadata.album as CKRecordValue?
         record["startedAt"] = listen.canonicalMetadata.startedAt as CKRecordValue?
-        record["state"] = listen.state.rawValue as CKRecordValue
+        // A delayed reconciliation from another device must not requeue a
+        // listen that CloudKit already recorded as submitted.
+        if record["state"] as? String != ListenState.submitted.rawValue {
+            record["state"] = listen.state.rawValue as CKRecordValue
+        }
         record["confidence"] = evidence.confidence.rawValue as CKRecordValue
         _ = try await database.save(record)
 
@@ -55,7 +62,7 @@ actor CloudSubmissionCoordinator: SubmissionCoordinator {
         evidenceRecord["origin"] = evidence.origin.rawValue as CKRecordValue
         evidenceRecord["capturedAt"] = evidence.capturedAt as CKRecordValue
         evidenceRecord["playTime"] = evidence.observedPlayTime as CKRecordValue?
-        _ = try? await database.save(evidenceRecord)
+        _ = try await database.save(evidenceRecord)
     }
 
     func acquireLease(for listenID: String) async throws -> SubmissionLease {
@@ -72,7 +79,10 @@ actor CloudSubmissionCoordinator: SubmissionCoordinator {
         gate["username"] = account as CKRecordValue
 
         let listenID = CKRecord.ID(recordName: listenID, zoneID: Self.zoneID)
-        let listen = (try? await database.record(for: listenID)) ?? CKRecord(recordType: "Listen", recordID: listenID)
+        let listen = try await fetchOrCreate(recordType: "Listen", id: listenID, database: database)
+        if listen["state"] as? String == ListenState.submitted.rawValue {
+            throw CloudCoordinationError.alreadySubmitted(listen["submittedAt"] as? Date ?? .now)
+        }
         if let owner = listen["leaseOwner"] as? String, owner != deviceID.uuidString,
             let expiry = listen["leaseExpiresAt"] as? Date, expiry > .now
         {
@@ -104,5 +114,13 @@ actor CloudSubmissionCoordinator: SubmissionCoordinator {
         gate["privateMode"] = enabled as CKRecordValue; gate["privateModeEffectiveAt"] = effectiveAt as CKRecordValue
         gate["generation"] = ((gate["generation"] as? NSNumber)?.intValue ?? 0) + 1 as CKRecordValue
         _ = try await database.save(gate)
+    }
+
+    private func fetchOrCreate(recordType: String, id: CKRecord.ID, database: CKDatabase) async throws -> CKRecord {
+        do {
+            return try await database.record(for: id)
+        } catch let error as CKError where error.code == .unknownItem {
+            return CKRecord(recordType: recordType, recordID: id)
+        }
     }
 }

@@ -17,7 +17,6 @@ actor DiscordPresenceClient: PresencePublishing {
     private var applicationID: String
     private var socketFD: Int32 = -1
     private var lastPresence: DiscordPresence?
-    private var lastPublishAt: Date?
     private(set) var socketPath: String?
     private let runtimeRoots: [String]?
 
@@ -32,7 +31,7 @@ actor DiscordPresenceClient: PresencePublishing {
 
     func publish(_ presence: DiscordPresence) async throws {
         try await connectIfNeeded()
-        if presence == lastPresence, let lastPublishAt, Date().timeIntervalSince(lastPublishAt) < 15 { return }
+        if let lastPresence, !Self.shouldPublish(presence, after: lastPresence) { return }
         let activity = Self.activityPayload(for: presence)
         try send(
             opcode: 1,
@@ -41,7 +40,24 @@ actor DiscordPresenceClient: PresencePublishing {
                 "nonce": UUID().uuidString,
             ])
         lastPresence = presence
-        lastPublishAt = .now
+    }
+
+    /// Discord advances its progress bar locally. Small timestamp differences
+    /// between polls should not create another RPC update; seeks still do.
+    nonisolated static func shouldPublish(_ presence: DiscordPresence, after previous: DiscordPresence) -> Bool {
+        var currentPayload = activityPayload(for: presence)
+        var previousPayload = activityPayload(for: previous)
+        currentPayload.removeValue(forKey: "timestamps")
+        previousPayload.removeValue(forKey: "timestamps")
+        guard NSDictionary(dictionary: currentPayload).isEqual(to: previousPayload) else { return true }
+        func equivalent(_ lhs: Date?, _ rhs: Date?) -> Bool {
+            switch (lhs, rhs) {
+            case (nil, nil): true
+            case let (lhs?, rhs?): abs(lhs.timeIntervalSince(rhs)) < 2
+            default: false
+            }
+        }
+        return !equivalent(presence.startedAt, previous.startedAt) || !equivalent(presence.endsAt, previous.endsAt)
     }
 
     nonisolated static func activityPayload(for presence: DiscordPresence) -> [String: Any] {
@@ -114,7 +130,6 @@ actor DiscordPresenceClient: PresencePublishing {
                 "nonce": UUID().uuidString,
             ])
         lastPresence = nil
-        lastPublishAt = nil
     }
 
     func disconnect() {
@@ -122,7 +137,6 @@ actor DiscordPresenceClient: PresencePublishing {
         socketFD = -1
         socketPath = nil
         lastPresence = nil
-        lastPublishAt = nil
     }
 
     func setApplicationID(_ value: String) {
@@ -131,9 +145,9 @@ actor DiscordPresenceClient: PresencePublishing {
     }
 
     /// A socket file can survive after Discord exits. Only report availability
-    /// after a fresh IPC connection succeeds.
+    /// after a live IPC connection succeeds. Preserve healthy connections so
+    /// idle checks do not clear the last published activity.
     func probeAvailability() async -> Bool {
-        disconnect()
         do {
             try await connectIfNeeded()
             return true
@@ -151,33 +165,40 @@ actor DiscordPresenceClient: PresencePublishing {
         guard !applicationID.isEmpty else {
             throw DiscordError.missingApplicationID
         }
-        guard let path = candidatePaths().first(where: { FileManager.default.fileExists(atPath: $0) }) else {
-            throw DiscordError.unavailable
-        }
-        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { throw DiscordError.connectFailed }
-        var noSignal: Int32 = 1
-        _ = Darwin.setsockopt(
-            fd, SOL_SOCKET, SO_NOSIGPIPE,
-            &noSignal, socklen_t(MemoryLayout<Int32>.size)
-        )
-        var address = sockaddr_un()
-        address.sun_family = sa_family_t(AF_UNIX)
-        let pathCapacity = MemoryLayout.size(ofValue: address.sun_path)
-        guard path.utf8CString.count <= pathCapacity else { Darwin.close(fd); throw DiscordError.connectFailed }
-        withUnsafeMutablePointer(to: &address.sun_path.0) { destination in
-            path.withCString { source in _ = Darwin.strncpy(destination, source, pathCapacity) }
-        }
-        let result = withUnsafePointer(to: &address) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+        for path in candidatePaths() where FileManager.default.fileExists(atPath: path) {
+            let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+            guard fd >= 0 else { throw DiscordError.connectFailed }
+            var noSignal: Int32 = 1
+            _ = Darwin.setsockopt(
+                fd, SOL_SOCKET, SO_NOSIGPIPE,
+                &noSignal, socklen_t(MemoryLayout<Int32>.size)
+            )
+            var sendTimeout = timeval(tv_sec: 2, tv_usec: 0)
+            _ = Darwin.setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &sendTimeout, socklen_t(MemoryLayout<timeval>.size))
+            var address = sockaddr_un()
+            address.sun_family = sa_family_t(AF_UNIX)
+            let pathCapacity = MemoryLayout.size(ofValue: address.sun_path)
+            guard path.utf8CString.count <= pathCapacity else { Darwin.close(fd); continue }
+            withUnsafeMutablePointer(to: &address.sun_path.0) { destination in
+                path.withCString { source in _ = Darwin.strncpy(destination, source, pathCapacity) }
+            }
+            let result = withUnsafePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+                }
+            }
+            // Stale socket files are common after Discord exits. Try every slot.
+            guard result == 0 else { Darwin.close(fd); continue }
+            socketFD = fd
+            socketPath = path
+            do {
+                try send(opcode: 0, payload: ["v": 1, "client_id": applicationID])
+                return
+            } catch {
+                disconnect()
             }
         }
-        // A leftover filesystem entry is not proof that Discord is running.
-        guard result == 0 else { Darwin.close(fd); throw DiscordError.unavailable }
-        socketFD = fd
-        socketPath = path
-        do { try send(opcode: 0, payload: ["v": 1, "client_id": applicationID]) } catch { disconnect(); throw error }
+        throw DiscordError.unavailable
     }
 
     private var isSocketLive: Bool {
@@ -203,6 +224,7 @@ actor DiscordPresenceClient: PresencePublishing {
             let written = frame.withUnsafeBytes { bytes in
                 Darwin.write(socketFD, bytes.baseAddress!.advanced(by: offset), frame.count - offset)
             }
+            if written < 0, errno == EINTR { continue }
             guard written > 0 else { disconnect(); throw DiscordError.writeFailed }
             offset += written
         }
@@ -216,6 +238,7 @@ actor DiscordPresenceClient: PresencePublishing {
             let environment = ProcessInfo.processInfo.environment
             roots = [environment["XDG_RUNTIME_DIR"], environment["TMPDIR"], environment["TMP"], environment["TEMP"], "/tmp"].compactMap { $0 }
         }
-        return roots.flatMap { root in (0...9).map { URL(fileURLWithPath: root).appendingPathComponent("discord-ipc-\($0)").path } }
+        var seen = Set<String>()
+        return roots.filter { seen.insert($0).inserted }.flatMap { root in (0...9).map { URL(fileURLWithPath: root).appendingPathComponent("discord-ipc-\($0)").path } }
     }
 }

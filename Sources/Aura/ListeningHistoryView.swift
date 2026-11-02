@@ -7,96 +7,76 @@ import UniformTypeIdentifiers
 struct ListeningHistoryView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
     @Query(sort: \ActivityRecord.startedAt, order: .reverse) private var records: [ActivityRecord]
     @State private var searchText = ""
     @State private var outcome: HistoryOutcomeFilter = .all
     @State private var period: HistoryPeriod = .month
-    @State private var source: HistorySourceFilter = .local
-    @State private var viewMode: HistoryViewMode = .overview
+    @State private var tab: HistoryTab = .overview
+    @State private var includeLastFMInActivity = false
     @State private var showingClearConfirmation = false
     @State private var exportDocument: HistoryCSVDocument?
     @State private var showingExporter = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            if records.isEmpty && !hasLastFMConnection && source != .lastFM {
-                ContentUnavailableView {
-                    Label("No Listening History Yet", systemImage: "chart.bar.xaxis")
-                } description: {
-                    Text("Play music in a supported app and your private listening history will appear here.")
-                } actions: {
+        Group {
+            if records.isEmpty && !hasLastFMConnection && tab != .lastFM {
+                AuraEmptyState(
+                    title: "No listening history yet",
+                    message: "Play music in a supported app and your private listening history will appear here."
+                ) {
                     if model.preferences.lastFMEnabled == false {
-                        Button("Connect Last.fm for multi-device history") {
-                            model.openSettings(.integrations)
+                        Button("Connect Last.fm for History from Every Device") {
+                            model.openSettings(.lastFM)
                         }
                         .auraButton(prominent: true)
                     }
                 }
+                .frame(maxHeight: .infinity)
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: BrandMetrics.screenPadding) {
-                        historyHeader
-                        if source == .lastFM {
-                            lastFMRemoteSection
-                        } else {
-                            historyModePicker
-                            switch viewMode {
-                            case .overview:
-                                weeklyRecapCard
-                                periodSummary
-                                listeningOverview
-                            case .insights:
-                                extendedInsightCards
-                            case .activity:
-                                if source == .combined { lastFMRemoteSection }
-                                historyList
-                            }
-                        }
+                AuraPage(title: tab.pageTitle, subtitle: headerDetail) {
+                    headerControls
+                } content: {
+                    switch tab {
+                    case .overview:
+                        overview
+                    case .insights:
+                        insights
+                    case .activity:
+                        if includeLastFMInActivity { lastFMRemoteSection }
+                        historyList
+                    case .lastFM:
+                        lastFMRemoteSection
                     }
-                    .frame(maxWidth: DashboardLayout.contentWidth)
-                    .padding(BrandMetrics.screenPadding)
-                    .frame(maxWidth: .infinity)
                 }
             }
         }
-        .navigationTitle("Listening History")
         .searchable(text: $searchText, prompt: "Search title, artist, or album")
         .toolbar {
-            ToolbarItemGroup {
-                Picker("Source", selection: $source) {
-                    ForEach(HistorySourceFilter.allCases) { Text($0.rawValue).tag($0) }
+            ToolbarItem(placement: .principal) {
+                Picker("History View", selection: $tab) {
+                    ForEach(HistoryTab.allCases) { Text($0.rawValue).tag($0) }
                 }
-                .frame(minWidth: 120, idealWidth: 150, maxWidth: 170)
-                .onChange(of: source) { _, newValue in
-                    if newValue != .local {
-                        Task { await model.refreshLastFMRemoteHistory(force: true) }
-                    }
-                }
-                if source != .lastFM {
-                    Picker("Period", selection: $period) {
-                        ForEach(HistoryPeriod.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(minWidth: 200, idealWidth: 280, maxWidth: 320)
-                    Picker("Outcome", selection: $outcome) {
-                        ForEach(HistoryOutcomeFilter.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    .frame(minWidth: 95, idealWidth: 120, maxWidth: 135)
-                }
-                Menu("More", systemImage: "ellipsis.circle") {
-                    if source != .local {
-                        Button("Refresh Last.fm…", systemImage: "arrow.clockwise") {
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("history.view-mode")
+            }
+            ToolbarItem {
+                Menu("More", systemImage: "ellipsis") {
+                    if tab == .lastFM || includeLastFMInActivity {
+                        Button("Refresh Last.fm", systemImage: "arrow.clockwise") {
                             Task { await model.refreshLastFMRemoteHistory(force: true) }
                         }
                         .disabled(!hasLastFMConnection || model.lastFMRemoteTracksLoading)
                     }
-                    if source != .lastFM {
-                        Button("Export Visible History…", systemImage: "square.and.arrow.up") { exportVisibleHistory() }
-                            .disabled(filteredRecords.isEmpty)
-                        Divider()
-                        Button("Clear Listening History…", systemImage: "trash", role: .destructive) { showingClearConfirmation = true }
-                    }
+                    Button("Export Visible History…", systemImage: "square.and.arrow.up") { exportVisibleHistory() }
+                        .disabled(filteredRecords.isEmpty)
+                    Divider()
+                    Button("Clear Listening History…", systemImage: "trash", role: .destructive) { showingClearConfirmation = true }
+                        .disabled(records.isEmpty)
                 }
+                .menuIndicator(.hidden)
             }
         }
         .confirmationDialog(
@@ -114,10 +94,75 @@ struct ListeningHistoryView: View {
             contentType: .commaSeparatedText,
             defaultFilename: "Aura-History"
         ) { _ in exportDocument = nil }
-        .task(id: source) {
-            if source != .local {
+        .task(id: tab == .lastFM || includeLastFMInActivity) {
+            if tab == .lastFM || includeLastFMInActivity {
                 await model.refreshLastFMRemoteHistory()
             }
+        }
+    }
+
+    // MARK: Header
+
+    @ViewBuilder
+    private var headerControls: some View {
+        switch tab {
+        case .overview, .insights:
+            periodPicker
+        case .activity:
+            HStack(spacing: BrandSpacing.sm) {
+                Menu {
+                    Picker("Outcome", selection: $outcome) {
+                        ForEach(HistoryOutcomeFilter.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                    Divider()
+                    Toggle("Include Last.fm Scrobbles", isOn: $includeLastFMInActivity)
+                } label: {
+                    Label(outcome == .all ? "Filter" : outcome.rawValue, systemImage: "line.3.horizontal.decrease")
+                }
+                .menuStyle(.button)
+                .auraButton()
+                .fixedSize()
+                periodPicker
+            }
+        case .lastFM:
+            if model.lastFMRemoteTracksLoading {
+                ProgressView().controlSize(.small)
+            } else {
+                Button("Refresh", systemImage: "arrow.clockwise") {
+                    Task { await model.refreshLastFMRemoteHistory(force: true) }
+                }
+                .auraButton()
+                .disabled(!hasLastFMConnection)
+            }
+        }
+    }
+
+    private var periodPicker: some View {
+        Picker("Period", selection: $period) {
+            ForEach(HistoryPeriod.allCases) { Text($0.rawValue).tag($0) }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+    }
+
+    private var headerDetail: String {
+        switch tab {
+        case .overview, .insights:
+            return period == .all
+                ? "Everything Aura has recorded on this Mac. It never leaves this Mac."
+                : "The last \(period.rawValue.lowercased()) on this Mac. It never leaves this Mac."
+        case .activity:
+            return "Every play Aura recorded, newest first."
+        case .lastFM:
+            if model.lastFMUsername.isEmpty {
+                return "Connect Last.fm to see scrobbles from your phone and other devices."
+            }
+            if let updated = model.lastFMRemoteTracksUpdatedAt {
+                return "Recent scrobbles for \(model.lastFMUsername) from every device · Updated \(updated.formatted(date: .omitted, time: .shortened))"
+            }
+            return "Recent scrobbles for \(model.lastFMUsername), including other devices."
         }
     }
 
@@ -125,413 +170,352 @@ struct ListeningHistoryView: View {
         model.preferences.lastFMEnabled && !model.lastFMUsername.isEmpty
     }
 
-    private var summary: ListeningSummary { ListeningSummary(records: filteredRecords) }
-    private var extendedInsights: ExtendedListeningInsights {
-        ExtendedListeningInsights(records: records, period: period)
-    }
-    private var historyHeader: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-            Text(source == .lastFM ? "Last.fm across your devices" : "Your listening, at a glance")
-                .font(BrandTypography.sectionTitle)
-            Text(headerDetail)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-    }
+    // MARK: Overview
 
-    private var historyModePicker: some View {
-        Picker("History View", selection: $viewMode) {
-            ForEach(HistoryViewMode.allCases) { mode in
-                Label(mode.rawValue, systemImage: mode.symbol).tag(mode)
-            }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(maxWidth: 440)
-        .accessibilityIdentifier("history.view-mode")
-    }
+    @ViewBuilder
+    private var overview: some View {
+        let insights = extendedInsights
+        let summary = self.summary
+        StatBand(
+            items: [
+                .init(
+                    label: "Listens", value: insights.comparison.current.listens.formatted(),
+                    delta: comparison(insights.comparison.listenDelta)),
+                .init(
+                    label: "Minutes", value: insights.comparison.current.minutes.formatted(),
+                    delta: comparison(insights.comparison.minuteDelta)),
+                .init(
+                    label: "Artists", value: insights.comparison.current.uniqueArtists.formatted(),
+                    delta: comparison(insights.comparison.artistDelta)),
+                .init(
+                    label: "Early skips",
+                    value: insights.comparison.current.skipRate.formatted(.percent.precision(.fractionLength(0))),
+                    delta: nil,
+                    help:
+                        "The share of eligible tracks changed before they reached the Last.fm listening threshold. Pauses and interrupted sessions are excluded."
+                ),
+            ],
+            footnote: periodComparisonDetail(insights)
+        )
 
-    private var headerDetail: String {
-        switch source {
-        case .local:
-            return "\(period.rawValue) of local listening activity on this Mac"
-        case .lastFM:
-            if model.lastFMUsername.isEmpty {
-                return "Connect Last.fm in Settings to see scrobbles from phones and other devices"
-            }
-            return "Recent scrobbles for \(model.lastFMUsername), including other devices"
-        case .combined:
-            return "Local insights plus Last.fm scrobbles from every connected device"
-        }
-    }
-
-    private var lastFMRemoteSection: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                    Label("Last.fm recent scrobbles", systemImage: "dot.radiowaves.left.and.right")
-                        .font(BrandTypography.cardTitle)
-                    if let updated = model.lastFMRemoteTracksUpdatedAt {
-                        Text("Updated \(updated.formatted(date: .omitted, time: .shortened))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Includes listens recorded outside Aura")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer()
-                if model.lastFMRemoteTracksLoading {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Button("Refresh", systemImage: "arrow.clockwise") {
-                        Task { await model.refreshLastFMRemoteHistory(force: true) }
-                    }
-                    .disabled(!hasLastFMConnection)
-                }
-            }
-
-            if !hasLastFMConnection {
-                ContentUnavailableView {
-                    Label("Last.fm not connected", systemImage: "person.crop.circle.badge.questionmark")
-                } description: {
-                    Text("Authorize Last.fm to pull scrobbles from your phone and other devices.")
-                } actions: {
-                    Button("Open Last.fm Settings") { model.openSettings(.integrations) }
-                        .auraButton(prominent: true)
-                }
-                .frame(minHeight: 160)
-            } else if let error = model.lastFMRemoteTracksError, filteredRemoteTracks.isEmpty {
-                ContentUnavailableView(
-                    "Couldn’t load Last.fm",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(error)
-                )
-                .frame(minHeight: 140)
-            } else if filteredRemoteTracks.isEmpty {
-                ContentUnavailableView(
-                    model.lastFMRemoteTracksLoading ? "Loading Last.fm…" : "No matching Last.fm scrobbles",
-                    systemImage: "magnifyingglass",
-                    description: Text(searchText.isEmpty ? "Finished scrobbles from Last.fm will show here." : "Try a different search.")
-                )
-                .frame(minHeight: 140)
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(filteredRemoteTracks) { track in
-                        LastFMRemoteHistoryRow(track: track)
-                        if track.id != filteredRemoteTracks.last?.id {
-                            Divider().padding(.leading, 68)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(BrandMetrics.cardPadding)
-        .auraCard(elevated: true)
-    }
-
-    private var weeklyRecapCard: some View {
-        let weeklyRecap = WeeklyListeningRecap(records: records)
-        return VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            HStack {
-                Label("This Week", systemImage: "sparkles")
-                    .font(.title3.bold())
-                Spacer()
-                Button("Copy Recap", systemImage: "doc.on.doc") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(weeklyRecap.shareText, forType: .string)
-                }
-                .disabled(weeklyRecap.listens == 0)
-            }
-            if weeklyRecap.listens == 0 {
-                Text("Your weekly recap will appear after you finish a listen.")
-                    .foregroundStyle(.secondary)
-            } else {
-                HStack(spacing: BrandSpacing.lg) {
-                    RecapValue(value: weeklyRecap.listens.formatted(), label: "Listens")
-                    RecapValue(value: weeklyRecap.minutes.formatted(), label: "Minutes")
-                    RecapValue(value: weeklyRecap.uniqueArtists.formatted(), label: "Artists")
-                }
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 190), alignment: .leading)],
-                    alignment: .leading,
-                    spacing: BrandSpacing.sm
-                ) {
-                    if let value = weeklyRecap.topArtist { LabeledContent("Top artist", value: value) }
-                    if let value = weeklyRecap.topTrack { LabeledContent("Top track", value: value) }
-                    if let value = weeklyRecap.topAlbum { LabeledContent("Top album", value: value) }
-                    if let value = weeklyRecap.topPlatform { LabeledContent("Top platform", value: value) }
-                    if let value = weeklyRecap.busiestDay { LabeledContent("Busiest day", value: value) }
-                }
-                .font(.callout)
-            }
-        }
-        .padding(BrandMetrics.cardPadding)
-        .auraCard()
-        .accessibilityElement(children: .contain)
-    }
-
-    private var summaryGrid: some View {
         LazyVGrid(
-            // Four metrics fill the content width; a column maximum here left
-            // the row ending two-thirds of the way across.
-            columns: [GridItem(.adaptive(minimum: 200), spacing: BrandMetrics.gridSpacing, alignment: .top)],
+            columns: [GridItem(.adaptive(minimum: 340), spacing: BrandMetrics.gridSpacing, alignment: .top)],
             alignment: .leading,
             spacing: BrandMetrics.gridSpacing
         ) {
-            ComparisonHistoryMetric(
-                title: "Listens", value: extendedInsights.comparison.current.listens.formatted(),
-                comparison: comparisonText(extendedInsights.comparison.listenDelta), symbol: "play.fill",
-                tint: theme.primaryColor)
-            ComparisonHistoryMetric(
-                title: "Minutes", value: extendedInsights.comparison.current.minutes.formatted(),
-                comparison: comparisonText(extendedInsights.comparison.minuteDelta), symbol: "clock.fill",
-                tint: theme.secondaryColor)
-            HistoryMetric(
-                title: "Early Skip Rate", value: extendedInsights.comparison.current.skipRate.formatted(.percent.precision(.fractionLength(0))),
-                symbol: "forward.fill", tint: BrandColors.warning
-            )
-            .help("The share of eligible tracks replaced before the scrobble threshold. Pauses and interrupted sessions are excluded.")
-            ComparisonHistoryMetric(
-                title: "Artists", value: extendedInsights.comparison.current.uniqueArtists.formatted(),
-                comparison: comparisonText(extendedInsights.comparison.artistDelta), symbol: "music.mic",
-                tint: theme.primaryColor)
-        }
-    }
-
-    private var periodSummary: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            HistorySectionHeader(
-                title: "\(period.rawValue) summary",
-                detail: periodSummaryDetail
-            )
-            summaryGrid
-            Label("Early skip rate is the share of eligible tracks changed before they reached the Last.fm listening threshold.", systemImage: "info.circle")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private var periodSummaryDetail: String {
-        if period == .all {
-            return "Totals across all available listening history on this Mac"
-        }
-        let comparisonPeriod = "\(period.dayCount ?? 0)-day period"
-        if extendedInsights.comparison.listenDelta == nil {
-            return "No earlier \(comparisonPeriod) is available for comparison yet"
-        }
-        return "Compared with the previous \(comparisonPeriod) on this Mac"
-    }
-
-    private var listeningOverview: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            HistorySectionHeader(
-                title: "Listening rhythm",
-                detail: "Your recent activity and most-played artists"
-            )
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 400), spacing: BrandMetrics.gridSpacing, alignment: .top)],
-                alignment: .leading,
-                spacing: BrandMetrics.gridSpacing
-            ) {
-                activityChart
-                topArtists
+            ChartSurface(title: "Last 7 days", caption: "\(summary.dailyCounts.reduce(0) { $0 + $1.plays }) listens") {
+                Chart(summary.dailyCounts) { item in
+                    BarMark(x: .value("Day", item.day, unit: .day), y: .value("Listens", item.plays), width: .ratio(0.55))
+                        .foregroundStyle(theme.primaryColor.gradient)
+                        .clipShape(.rect(cornerRadius: 5, style: .continuous))
+                }
+                .chartXAxis {
+                    AxisMarks(values: .stride(by: .day)) { _ in
+                        AxisValueLabel(format: .dateTime.weekday(.abbreviated))
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
+                        AxisGridLine().foregroundStyle(BrandColors.hairline)
+                        AxisValueLabel()
+                    }
+                }
+                .frame(height: 180)
+                .accessibilityLabel("Listens during the most recent seven days using the active filters")
             }
-        }
-    }
-
-    private var activityChart: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            HStack {
-                Label("Recent 7 Days", systemImage: "chart.bar.fill")
-                    .font(.headline)
-                Spacer()
-                Text("\(summary.dailyCounts.reduce(0) { $0 + $1.plays }) total")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-            Chart(summary.dailyCounts) { item in
-                BarMark(x: .value("Day", item.day, unit: .day), y: .value("Listens", item.plays))
-                    .foregroundStyle(
-                        .linearGradient(
-                            colors: [theme.secondaryColor, theme.primaryColor],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+            ChartSurface(title: "Top artists", caption: "By listens") {
+                if summary.topArtists.isEmpty {
+                    Text("No played tracks in this period.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 180, alignment: .center)
+                } else {
+                    RankedList(
+                        items: summary.topArtists.map { RankedListen(name: $0.artist, detail: nil, plays: $0.plays) },
+                        showsBars: true
                     )
-                    .cornerRadius(4)
-            }
-            .chartXAxis {
-                AxisMarks(values: .stride(by: .day)) { _ in
-                    AxisValueLabel(format: .dateTime.weekday(.narrow))
-                        .foregroundStyle(.secondary)
-                    AxisTick().foregroundStyle(.quaternary)
                 }
             }
-            .chartYAxis { AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) }
-            .chartPlotStyle { plotArea in
-                plotArea.background(.primary.opacity(0.025))
-            }
-            .frame(height: 190)
-            .accessibilityLabel("Listens during the most recent seven days using the active filters")
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(BrandMetrics.cardPadding)
-        .auraCard()
+
+        weeklyRecap
     }
 
-    @ViewBuilder private var topArtists: some View {
-        if !summary.topArtists.isEmpty {
-            VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-                HStack {
-                    Label("Top Artists", systemImage: "music.mic")
-                        .font(.headline)
-                    Spacer()
-                    Text("By listens")
-                        .font(.caption.weight(.medium))
+    private var weeklyRecap: some View {
+        let recap = WeeklyListeningRecap(records: records)
+        return AuraSection(title: "This week", detail: "The last seven days, ready to share.") {
+            Button("Copy Recap", systemImage: "doc.on.doc") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(recap.shareText, forType: .string)
+            }
+            .auraButton()
+            .controlSize(.small)
+            .disabled(recap.listens == 0)
+        } content: {
+            VStack(alignment: .leading, spacing: BrandSpacing.md) {
+                if recap.listens == 0 {
+                    Text("Your weekly recap appears after you finish a listen.")
+                        .font(.callout)
                         .foregroundStyle(.secondary)
-                }
-                ForEach(Array(summary.topArtists.enumerated()), id: \.element.id) { index, artist in
-                    HStack(spacing: BrandMetrics.cardContentSpacing) {
-                        Text("\(index + 1)")
-                            .font(.caption.bold().monospacedDigit())
-                            .foregroundStyle(index == 0 ? theme.primaryColor : .secondary)
-                            .frame(width: 20)
-                        VStack(alignment: .leading, spacing: BrandSpacing.xs) {
-                            Text(artist.artist)
-                                .font(.callout.weight(.medium))
-                                .lineLimit(1)
-                            ProgressView(
-                                value: Double(artist.plays),
-                                total: Double(max(summary.topArtists.first?.plays ?? 1, 1))
-                            )
-                            .tint(index == 0 ? theme.primaryColor : BrandColors.neutral)
-                            .controlSize(.small)
-                        }
-                        Spacer()
-                        Text(artist.plays.formatted())
-                            .font(.callout.monospacedDigit())
-                            .foregroundStyle(.secondary)
+                } else {
+                    Text(recapHeadline(recap))
+                        .font(BrandTypography.cardTitle)
+                        .fixedSize(horizontal: false, vertical: true)
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 170), spacing: BrandSpacing.md, alignment: .topLeading)],
+                        alignment: .leading,
+                        spacing: BrandSpacing.md
+                    ) {
+                        if let value = recap.topTrack { RecapFact(label: "Top track", value: value) }
+                        if let value = recap.topAlbum { RecapFact(label: "Top album", value: value) }
+                        if let value = recap.topPlatform { RecapFact(label: "Mostly on", value: value) }
+                        if let value = recap.busiestDay { RecapFact(label: "Busiest day", value: value) }
                     }
                 }
             }
+            .padding(BrandMetrics.cardPaddingSpacious)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(BrandMetrics.cardPadding)
-            .auraCard()
+            .auraSurface(.raised)
+            .accessibilityElement(children: .contain)
         }
     }
 
-    private var extendedInsightCards: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            HistorySectionHeader(
-                title: "Explore your library",
-                detail: "Patterns from played tracks in the selected period"
-            )
-            LazyVGrid(
-                columns: insightColumns,
-                alignment: .leading,
-                spacing: BrandMetrics.gridSpacing
-            ) {
-                RankedInsightCard(title: "Top Tracks", items: extendedInsights.topTracks)
-                RankedInsightCard(title: "Top Albums", items: extendedInsights.topAlbums)
-            }
-            LazyVGrid(
-                columns: insightColumns,
-                alignment: .leading,
-                spacing: BrandMetrics.gridSpacing
-            ) {
-                VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-                    Label("Listening by Hour", systemImage: "clock")
-                        .font(.headline)
-                    Chart(extendedInsights.hourlyCounts) { item in
-                        BarMark(x: .value("Hour", item.hour), y: .value("Listens", item.plays))
-                            .foregroundStyle(theme.primaryColor.gradient)
-                            .cornerRadius(2)
-                    }
-                    .chartXAxis {
-                        AxisMarks(values: [0, 6, 12, 18, 23]) {
-                            AxisValueLabel()
-                            AxisTick().foregroundStyle(.quaternary)
-                        }
-                    }
-                    .frame(height: 130)
-                    .accessibilityLabel(hourlyAccessibilitySummary)
-                }
-                .padding(BrandMetrics.cardPadding)
-                .auraCard()
-                VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-                    Label("Music Platforms", systemImage: "music.note.list")
-                        .font(.headline)
-                    if extendedInsights.platformCounts.isEmpty {
-                        Text("No played tracks in this period.").foregroundStyle(.secondary)
-                    } else {
-                        ForEach(extendedInsights.platformCounts) { item in
-                            PlatformListenRow(
-                                item: item,
-                                total: max(extendedInsights.comparison.current.listens, 1)
-                            )
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(BrandMetrics.cardPadding)
-                .auraCard()
-            }
-            Text(
-                "Comparisons use the immediately preceding equal-length period and all available local history. Search does not change comparison values; retention settings may limit older data."
-            )
-            .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
-        }
+    private func recapHeadline(_ recap: WeeklyListeningRecap) -> String {
+        var line = "\(recap.listens.formatted()) listens across \(recap.minutes.formatted()) minutes and \(recap.uniqueArtists.formatted()) artists."
+        if let artist = recap.topArtist { line += " \(artist) led the week." }
+        return line
     }
 
-    private var insightColumns: [GridItem] {
+    // MARK: Insights
+
+    @ViewBuilder
+    private var insights: some View {
+        let insights = extendedInsights
+        LazyVGrid(columns: twoColumns, alignment: .leading, spacing: BrandMetrics.gridSpacing) {
+            ChartSurface(title: "Top tracks") {
+                if insights.topTracks.isEmpty {
+                    emptyInsight
+                } else {
+                    RankedList(items: insights.topTracks)
+                }
+            }
+            ChartSurface(title: "Top albums") {
+                if insights.topAlbums.isEmpty {
+                    emptyInsight
+                } else {
+                    RankedList(items: insights.topAlbums)
+                }
+            }
+            ChartSurface(title: "Listening by hour", caption: peakHourCaption(insights)) {
+                Chart(insights.hourlyCounts) { item in
+                    BarMark(x: .value("Hour", item.hour), y: .value("Listens", item.plays))
+                        .foregroundStyle(theme.primaryColor.gradient)
+                        .clipShape(.rect(cornerRadius: 3, style: .continuous))
+                }
+                .chartXAxis {
+                    AxisMarks(values: [0, 6, 12, 18, 23]) { value in
+                        AxisValueLabel {
+                            if let hour = value.as(Int.self) { Text(hourLabel(hour)) }
+                        }
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) {
+                        AxisGridLine().foregroundStyle(BrandColors.hairline)
+                        AxisValueLabel()
+                    }
+                }
+                .frame(height: 150)
+                .accessibilityLabel(hourlyAccessibilitySummary(insights))
+            }
+            ChartSurface(title: "Music apps") {
+                if insights.platformCounts.isEmpty {
+                    emptyInsight
+                } else {
+                    VStack(spacing: BrandSpacing.md) {
+                        ForEach(insights.platformCounts) { item in
+                            VStack(spacing: BrandSpacing.xs) {
+                                HStack {
+                                    Text(item.platform).font(.callout.weight(.medium))
+                                    Spacer()
+                                    Text(item.plays.formatted())
+                                        .font(.callout.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                }
+                                AuraProgressBar(
+                                    value: Double(item.plays),
+                                    total: Double(max(insights.comparison.current.listens, 1))
+                                )
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                }
+            }
+        }
+        Text(
+            "Comparisons use the immediately preceding equal-length period and all available local history. Search does not change comparison values; retention settings may limit older data."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private var emptyInsight: some View {
+        Text("No played tracks in this period.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+    }
+
+    private var twoColumns: [GridItem] {
         [
             GridItem(.flexible(minimum: 260), spacing: BrandMetrics.gridSpacing, alignment: .top),
             GridItem(.flexible(minimum: 260), spacing: BrandMetrics.gridSpacing, alignment: .top),
         ]
     }
 
-    private var hourlyAccessibilitySummary: String {
-        guard let peak = extendedInsights.hourlyCounts.max(by: { $0.plays < $1.plays }), peak.plays > 0 else {
+    private func hourLabel(_ hour: Int) -> String {
+        var components = DateComponents()
+        components.hour = hour
+        let date = Calendar.current.date(from: components) ?? .now
+        return date.formatted(.dateTime.hour())
+    }
+
+    private func peakHourCaption(_ insights: ExtendedListeningInsights) -> String? {
+        guard let peak = insights.hourlyCounts.max(by: { $0.plays < $1.plays }), peak.plays > 0 else { return nil }
+        return "Busiest around \(hourLabel(peak.hour))"
+    }
+
+    private func hourlyAccessibilitySummary(_ insights: ExtendedListeningInsights) -> String {
+        guard let peak = insights.hourlyCounts.max(by: { $0.plays < $1.plays }), peak.plays > 0 else {
             return "No hourly listening activity in the selected period"
         }
         return "Hourly listening activity. The busiest hour begins at \(peak.hour):00 with \(peak.plays) listens."
     }
 
+    // MARK: Activity
+
+    @ViewBuilder
     private var historyList: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            HStack {
-                VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                    Text("Recent activity on this Mac")
-                        .font(BrandTypography.cardTitle)
-                    Text("Local Aura history stays private on this Mac")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text("\(filteredRecords.count) \(filteredRecords.count == 1 ? "track" : "tracks")")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-            if filteredRecords.isEmpty {
-                ContentUnavailableView("No Matches", systemImage: "magnifyingglass", description: Text("Adjust the search or filters."))
-                    .frame(minHeight: 180)
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(filteredRecords) { record in
-                        HistoryRow(record: record, currentArtwork: isCurrent(record) ? model.artworkData : nil)
-                        if record.id != filteredRecords.last?.id {
-                            Divider().padding(.leading, 68)
+        let visible = filteredRecords
+        if visible.isEmpty {
+            AuraEmptyState(
+                symbol: "magnifyingglass",
+                title: "No matches",
+                message: "Adjust the search, the period, or the outcome filter."
+            )
+        } else {
+            LazyVStack(alignment: .leading, spacing: BrandSpacing.lg) {
+                ForEach(dayGroups(visible), id: \.day) { group in
+                    VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(dayTitle(group.day))
+                                .font(BrandTypography.groupTitle)
+                                .accessibilityAddTraits(.isHeader)
+                            Spacer()
+                            Text("\(group.records.count) \(group.records.count == 1 ? "play" : "plays")")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        RowGroup {
+                            ForEach(Array(group.records.enumerated()), id: \.element.id) { index, record in
+                                if index > 0 { RowDivider(inset: BrandMetrics.rowArtwork + BrandMetrics.cardContentSpacing) }
+                                HistoryRow(record: record, currentArtwork: isCurrent(record) ? model.artworkData : nil)
+                            }
                         }
                     }
                 }
             }
         }
-        .padding(BrandMetrics.cardPadding)
-        .auraCard(elevated: true)
+    }
+
+    private struct DayGroup {
+        let day: Date
+        var records: [ActivityRecord]
+    }
+
+    private func dayGroups(_ records: [ActivityRecord]) -> [DayGroup] {
+        let calendar = Calendar.current
+        var groups: [DayGroup] = []
+        for record in records {
+            let day = calendar.startOfDay(for: record.startedAt)
+            if groups.last?.day == day {
+                groups[groups.count - 1].records.append(record)
+            } else {
+                groups.append(DayGroup(day: day, records: [record]))
+            }
+        }
+        return groups
+    }
+
+    private func dayTitle(_ day: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        if let days = calendar.dateComponents([.day], from: day, to: calendar.startOfDay(for: .now)).day, days < 7 {
+            return day.formatted(.dateTime.weekday(.wide))
+        }
+        return day.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+    }
+
+    // MARK: Last.fm
+
+    private var lastFMRemoteSection: some View {
+        let tracks = filteredRemoteTracks
+        return AuraSection(
+            title: tab == .lastFM ? "Recent scrobbles" : "From Last.fm",
+            detail: "Includes listens recorded outside Aura."
+        ) {
+            if !hasLastFMConnection {
+                AuraEmptyState(
+                    symbol: "person.crop.circle.badge.questionmark",
+                    title: "Last.fm isn’t connected",
+                    message: "Authorize Last.fm to see scrobbles from your phone and other devices."
+                ) {
+                    Button("Open Last.fm Settings") { model.openSettings(.lastFM) }
+                        .auraButton(prominent: true)
+                }
+                .auraSurface()
+            } else if let error = model.lastFMRemoteTracksError, tracks.isEmpty {
+                AuraEmptyState(symbol: "exclamationmark.triangle", title: "Couldn’t load Last.fm", message: error)
+                    .auraSurface()
+            } else if tracks.isEmpty {
+                AuraEmptyState(
+                    symbol: "magnifyingglass",
+                    title: model.lastFMRemoteTracksLoading ? "Loading Last.fm…" : "No matching scrobbles",
+                    message: searchText.isEmpty ? "Finished scrobbles from Last.fm will show here." : "Try a different search."
+                )
+                .auraSurface()
+            } else {
+                RowGroup {
+                    ForEach(Array(tracks.enumerated()), id: \.element.id) { index, track in
+                        if index > 0 { RowDivider(inset: BrandMetrics.rowArtwork + BrandMetrics.cardContentSpacing) }
+                        LastFMRemoteHistoryRow(track: track)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Data
+
+    private var summary: ListeningSummary { ListeningSummary(records: filteredRecords) }
+    private var extendedInsights: ExtendedListeningInsights {
+        ExtendedListeningInsights(records: records, period: period)
+    }
+
+    private func periodComparisonDetail(_ insights: ExtendedListeningInsights) -> String {
+        if period == .all { return "Totals across all listening history on this Mac." }
+        let comparisonPeriod = "\(period.dayCount ?? 0) days"
+        if insights.comparison.listenDelta == nil {
+            return "Comparisons appear once there is an earlier \(comparisonPeriod) of history."
+        }
+        return "Changes are against the previous \(comparisonPeriod)."
+    }
+
+    private func comparison(_ delta: Int?) -> StatBand.Delta? {
+        guard period != .all, let delta else { return nil }
+        return StatBand.Delta(value: delta)
     }
 
     private var filteredRecords: [ActivityRecord] {
@@ -565,233 +549,210 @@ struct ListeningHistoryView: View {
         record.title == model.snapshot.track?.title && record.artist == model.snapshot.track?.artist
     }
 
-    private func comparisonText(_ delta: Int?) -> String {
-        guard period != .all, let delta else { return "" }
-        return delta == 0 ? "Same as prior" : "\(delta > 0 ? "+" : "")\(delta) vs prior"
-    }
-
     private func exportVisibleHistory() {
         exportDocument = HistoryCSVDocument(text: HistoryCSVExporter.csv(records: filteredRecords))
         showingExporter = true
     }
 }
 
-enum HistorySourceFilter: String, CaseIterable, Identifiable {
-    case local = "This Mac"
-    case lastFM = "Last.fm"
-    case combined = "Combined"
-    var id: Self { self }
-}
-
-private enum HistoryViewMode: String, CaseIterable, Identifiable {
+private enum HistoryTab: String, CaseIterable, Identifiable {
     case overview = "Overview"
     case insights = "Insights"
     case activity = "Activity"
+    case lastFM = "Last.fm"
 
     var id: Self { self }
-    var symbol: String {
+
+    var pageTitle: String {
         switch self {
-        case .overview: "rectangle.grid.2x2"
-        case .insights: "chart.xyaxis.line"
-        case .activity: "list.bullet"
+        case .overview: "Your listening"
+        case .insights: "Insights"
+        case .activity: "Activity"
+        case .lastFM: "Last.fm"
         }
     }
 }
 
-private struct LastFMRemoteHistoryRow: View {
-    let track: LastFMRemoteTrack
-    @Environment(\.appTheme) private var theme
+// MARK: - Components
+
+/// The headline numbers for a period, set as one band rather than four boxes.
+private struct StatBand: View {
+    struct Delta {
+        let value: Int
+    }
+
+    struct Item: Identifiable {
+        let label: String
+        let value: String
+        let delta: Delta?
+        var help: String?
+        var id: String { label }
+    }
+
+    let items: [Item]
+    let footnote: String
 
     var body: some View {
-        HStack(spacing: BrandMetrics.gridSpacing) {
-            remoteArtwork
-            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                HStack(spacing: BrandSpacing.sm) {
-                    Text(track.title)
-                        .font(.headline)
-                        .lineLimit(1)
-                    if track.isNowPlaying {
-                        Text("Now")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(theme.primaryColor)
-                            .padding(.horizontal, BrandMetrics.capsuleHorizontal)
-                            .padding(.vertical, BrandMetrics.capsuleVertical)
-                            .background(theme.primaryColor.opacity(0.12), in: .capsule)
-                    }
-                }
-                Text(track.artist)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                if let album = track.album, !album.isEmpty {
-                    Text(album)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: BrandSpacing.xs) {
-                Label("Last.fm", systemImage: "dot.radiowaves.left.and.right")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(theme.primaryColor)
-                    .padding(.horizontal, BrandMetrics.capsuleHorizontal)
-                    .padding(.vertical, BrandMetrics.capsuleVertical)
-                    .background(theme.primaryColor.opacity(0.11), in: .capsule)
-                if let listenedAt = track.listenedAt {
-                    Text(listenedAt, format: .dateTime.month(.abbreviated).day().hour().minute())
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                } else if track.isNowPlaying {
-                    Text("Playing now")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(width: BrandMetrics.rowTrailingColumn, alignment: .trailing)
-        }
-        .padding(.vertical, BrandSpacing.sm)
-        .contentShape(.rect)
-        .accessibilityElement(children: .combine)
-    }
-
-    @ViewBuilder
-    private var remoteArtwork: some View {
-        if let url = track.imageURL {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                case .failure:
-                    remotePlaceholder
-                case .empty:
-                    ZStack {
-                        remotePlaceholder
-                        ProgressView().controlSize(.mini)
-                    }
-                @unknown default:
-                    remotePlaceholder
-                }
-            }
-            .frame(width: 50, height: 50)
-            .clipShape(.rect(cornerRadius: BrandRadius.xs, style: .continuous))
-        } else {
-            remotePlaceholder
-                .frame(width: 50, height: 50)
-                .clipShape(.rect(cornerRadius: BrandRadius.xs, style: .continuous))
-        }
-    }
-
-    private var remotePlaceholder: some View {
-        ZStack {
-            LinearGradient(
-                colors: [theme.darkBackground, theme.primaryColor.opacity(0.45)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            BrandMark().padding(BrandSpacing.sm)
-        }
-    }
-}
-
-private struct ComparisonHistoryMetric: View {
-    let title: String
-    let value: String
-    let comparison: String
-    let symbol: String
-    let tint: Color
-    var body: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            HStack {
-                MetricIcon(symbol: symbol, tint: tint)
-                Spacer()
-                if !comparison.isEmpty {
-                    Text(comparison)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                Text(value)
-                    .font(.title.bold())
-                    .monospacedDigit()
-                Text(title)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-        .padding(BrandMetrics.cardPadding)
-        .auraCard()
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct RankedInsightCard: View {
-    let title: String
-    let items: [RankedListen]
-    @Environment(\.appTheme) private var theme
-    var body: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            Label(title, systemImage: title == "Top Tracks" ? "music.note" : "square.stack")
-                .font(.headline)
-            if items.isEmpty {
-                Text("No played tracks in this period.").foregroundStyle(.secondary)
-            } else {
-                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    HStack(spacing: BrandSpacing.sm) {
-                        Text("\(index + 1)")
-                            .font(.caption.bold().monospacedDigit())
-                            .foregroundStyle(index == 0 ? theme.primaryColor : .secondary)
-                            .frame(width: 18)
-                        VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                            Text(item.name)
-                                .font(.callout.weight(.medium))
-                                .lineLimit(1)
-                            if let detail = item.detail {
-                                Text(detail)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
+        VStack(alignment: .leading, spacing: BrandSpacing.md) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        if index > 0 {
+                            Rectangle().fill(BrandColors.hairline).frame(width: 1, height: 56)
                         }
-                        Spacer()
-                        Text(item.plays.formatted())
-                            .font(.callout.monospacedDigit())
-                            .foregroundStyle(.secondary)
+                        StatBlock(item: item)
+                            .padding(.horizontal, BrandSpacing.lg)
                     }
                 }
+                Grid(alignment: .leading, horizontalSpacing: BrandSpacing.lg, verticalSpacing: BrandSpacing.lg) {
+                    GridRow {
+                        ForEach(items.prefix(2)) { StatBlock(item: $0) }
+                    }
+                    GridRow {
+                        ForEach(items.dropFirst(2)) { StatBlock(item: $0) }
+                    }
+                }
+                .padding(.horizontal, BrandSpacing.lg)
             }
+            Text(footnote)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, BrandSpacing.lg)
+        }
+        .padding(.vertical, BrandSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .auraSurface(.raised, radius: BrandRadius.lg)
+    }
+}
+
+private struct StatBlock: View {
+    let item: StatBand.Item
+    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BrandSpacing.xs) {
+            HStack(spacing: 4) {
+                Text(item.label)
+                    .auraEyebrow()
+                    .foregroundStyle(.secondary)
+                if item.help != nil {
+                    Image(systemName: "info.circle")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+            }
+            Text(item.value)
+                .font(BrandTypography.statValue)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+            Group {
+                if let delta = item.delta {
+                    Label(deltaText(delta.value), systemImage: deltaSymbol(delta.value))
+                        .foregroundStyle(delta.value > 0 ? theme.readablePrimary(for: colorScheme) : Color.secondary)
+                } else {
+                    Text(" ")
+                }
+            }
+            .font(.caption.weight(.semibold).monospacedDigit())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(BrandMetrics.cardPadding)
-        .auraCard()
+        .help(item.help ?? "")
+        .accessibilityElement(children: .combine)
+        .accessibilityHint(item.help ?? "")
+    }
+
+    private func deltaText(_ value: Int) -> String {
+        value == 0 ? "Same as before" : "\(abs(value).formatted()) \(value > 0 ? "more" : "fewer")"
+    }
+
+    private func deltaSymbol(_ value: Int) -> String {
+        value == 0 ? "equal" : (value > 0 ? "arrow.up.right" : "arrow.down.right")
     }
 }
 
-private struct HistoryMetric: View {
+private struct ChartSurface<Content: View>: View {
     let title: String
-    let value: String
-    let symbol: String
-    let tint: Color
+    var caption: String?
+    @ViewBuilder var content: Content
+
     var body: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardContentSpacing) {
-            HStack {
-                MetricIcon(symbol: symbol, tint: tint)
-                Spacer()
-            }
-            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                Text(value)
-                    .font(.title.bold())
-                    .monospacedDigit()
+        VStack(alignment: .leading, spacing: BrandSpacing.md) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .font(BrandTypography.groupTitle)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                if let caption {
+                    Text(caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            content
+        }
+        .padding(BrandMetrics.cardPaddingSpacious - 4)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .auraSurface()
+    }
+}
+
+private struct RankedList: View {
+    let items: [RankedListen]
+    var showsBars = false
+    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let top = Double(max(items.first?.plays ?? 1, 1))
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                HStack(alignment: .center, spacing: BrandSpacing.sm) {
+                    Text("\(index + 1)")
+                        .font(.callout.weight(.bold).monospacedDigit())
+                        .foregroundStyle(index == 0 ? theme.readablePrimary(for: colorScheme) : Color.secondary)
+                        .frame(width: 22, alignment: .leading)
+                    VStack(alignment: .leading, spacing: showsBars ? BrandSpacing.xs : 1) {
+                        Text(item.name)
+                            .font(.callout.weight(.medium))
+                            .lineLimit(1)
+                        if let detail = item.detail {
+                            Text(detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        if showsBars {
+                            AuraProgressBar(
+                                value: Double(item.plays), total: top, height: 4,
+                                tint: index == 0 ? theme.primaryColor : BrandColors.neutral.opacity(0.6))
+                        }
+                    }
+                    Spacer(minLength: BrandSpacing.sm)
+                    Text(item.plays.formatted())
+                        .font(.callout.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-        .padding(BrandMetrics.cardPadding)
-        .auraCard()
+    }
+}
+
+private struct RecapFact: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .auraEyebrow()
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.callout.weight(.medium))
+                .lineLimit(2)
+        }
         .accessibilityElement(children: .combine)
     }
 }
@@ -799,124 +760,107 @@ private struct HistoryMetric: View {
 private struct HistoryRow: View {
     let record: ActivityRecord
     let currentArtwork: Data?
+
     var body: some View {
-        HStack(spacing: BrandMetrics.gridSpacing) {
-            ArtworkView(data: currentArtwork ?? record.artworkData, size: 50)
-            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
+        HStack(spacing: BrandMetrics.cardContentSpacing) {
+            ArtworkView(data: currentArtwork ?? record.artworkData, size: BrandMetrics.rowArtwork)
+            VStack(alignment: .leading, spacing: 1) {
                 Text(record.title)
-                    .font(.headline)
+                    .font(.callout.weight(.semibold))
                     .lineLimit(1)
-                Text(record.artist)
-                    .font(.callout)
+                Text([record.artist, record.album].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                if let album = record.album, !album.isEmpty {
-                    Text(album)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: BrandSpacing.xs) {
-                OutcomeLabel(outcome: record.outcomeLabel)
-                Text(record.startedAt, format: .dateTime.month(.abbreviated).day().hour().minute())
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: BrandMetrics.rowTrailingColumn, alignment: .trailing)
+            Spacer(minLength: BrandSpacing.sm)
+            OutcomeLabel(outcome: record.outcomeLabel)
+            Text(record.startedAt, format: .dateTime.hour().minute())
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .frame(width: 64, alignment: .trailing)
         }
-        .padding(.vertical, BrandSpacing.sm)
+        .padding(.vertical, BrandSpacing.xs + 2)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
     }
 }
 
-private struct HistorySectionHeader: View {
-    let title: String
-    let detail: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-            Text(title)
-                .font(.title3.bold())
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct MetricIcon: View {
-    let symbol: String
-    let tint: Color
-
-    var body: some View {
-        Image(systemName: symbol)
-            .font(.callout.weight(.semibold))
-            .foregroundStyle(tint)
-            .frame(width: BrandMetrics.tileMedium, height: BrandMetrics.tileMedium)
-            .background(tint.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(BrandMetrics.tileMedium), style: .continuous))
-            .accessibilityHidden(true)
-    }
-}
-
-private struct RecapValue: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-            Text(value).font(.title2.bold().monospacedDigit())
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct PlatformListenRow: View {
-    let item: PlatformListenCount
-    let total: Int
+private struct LastFMRemoteHistoryRow: View {
+    let track: LastFMRemoteTrack
     @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(spacing: BrandSpacing.xs) {
-            HStack {
-                Text(item.platform)
-                    .font(.callout.weight(.medium))
-                Spacer()
-                Text(item.plays.formatted())
-                    .font(.callout.monospacedDigit())
+        HStack(spacing: BrandMetrics.cardContentSpacing) {
+            remoteArtwork
+            VStack(alignment: .leading, spacing: 1) {
+                Text(track.title)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                Text([track.artist, track.album].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            ProgressView(value: Double(item.plays), total: Double(total))
-                .tint(theme.primaryColor)
-                .controlSize(.small)
+            Spacer(minLength: BrandSpacing.sm)
+            if track.isNowPlaying {
+                StatusPill(title: "Now", symbol: nil, tint: BrandColors.blush)
+            }
+            Group {
+                if let listenedAt = track.listenedAt {
+                    Text(listenedAt, format: .dateTime.month(.abbreviated).day().hour().minute())
+                } else if track.isNowPlaying {
+                    Text("Playing")
+                }
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.tertiary)
+            .frame(width: BrandMetrics.rowTrailingColumn, alignment: .trailing)
         }
+        .padding(.vertical, BrandSpacing.xs + 2)
+        .contentShape(.rect)
         .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private var remoteArtwork: some View {
+        let size = BrandMetrics.rowArtwork
+        Group {
+            if let url = track.imageURL {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image): image.resizable().scaledToFill()
+                    default: remotePlaceholder
+                    }
+                }
+            } else {
+                remotePlaceholder
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(.rect(cornerRadius: size * ArtworkView.cornerRatio, style: .continuous))
+    }
+
+    private var remotePlaceholder: some View {
+        ZStack {
+            theme.primaryColor.opacity(0.12)
+            BrandMark().padding(BrandSpacing.sm)
+        }
     }
 }
 
 private struct OutcomeLabel: View {
     let outcome: String
     @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Label(outcome, systemImage: symbol)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(tint)
-            .padding(.horizontal, BrandMetrics.capsuleHorizontal)
-            .padding(.vertical, BrandMetrics.capsuleVertical)
-            .background(tint.opacity(0.11), in: .capsule)
-    }
-
-    private var symbol: String {
-        outcome == "Skipped" ? "forward.fill" : "checkmark"
+        StatusPill(title: outcome, symbol: outcome == "Skipped" ? "forward.fill" : "checkmark", tint: tint)
     }
 
     private var tint: Color {
-        outcome == "Skipped" ? BrandColors.neutral : theme.primaryColor
+        outcome == "Skipped" ? BrandColors.neutral : theme.readablePrimary(for: colorScheme)
     }
 }
 

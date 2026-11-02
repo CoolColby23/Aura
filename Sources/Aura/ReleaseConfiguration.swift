@@ -13,11 +13,10 @@ enum ReleaseConfiguration {
         fallback: "1525555974390153346"
     )
 
-    // The Discord application currently has no uploaded Rich Presence assets.
-    // Use its public application icon directly so the fallback and small badge
-    // keep working even when an asset key is unavailable.
+    // Keep the fallback on the project site. Discord application icon hashes
+    // can expire when the icon changes, leaving a cached 404 in profile cards.
     static let discordApplicationIconURL =
-        "https://cdn.discordapp.com/app-icons/1525555974390153346/409fc4cf26402a15fc6b0d4d5a6a3c36.png?size=1024"
+        "https://presence-fm.vercel.app/assets/brand/favicon-512.png"
 
     static var hasDiscordConfiguration: Bool { !discordApplicationID.isEmpty }
 

@@ -165,9 +165,9 @@ actor LastFMClient: Scrobbling, ScrobbleSubmitting {
         do {
             let (data, response) = try await session.data(for: request)
             if let http = response as? HTTPURLResponse, http.statusCode == 429 {
-                let retryAfter = TimeInterval(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 30
-                earliestRequestAt = clock.now.addingTimeInterval(max(5, retryAfter))
-                throw LastFMError.api(29, "Last.fm is busy. Aura will retry automatically.")
+                let retryAfter = max(5, TimeInterval(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 30)
+                earliestRequestAt = clock.now.addingTimeInterval(retryAfter)
+                throw LastFMError.retryLater("Last.fm is busy. Aura will retry automatically.", after: retryAfter)
             }
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                 throw LastFMError.transport("Last.fm returned HTTP \(http.statusCode).")
@@ -175,7 +175,10 @@ actor LastFMClient: Scrobbling, ScrobbleSubmitting {
             guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw LastFMError.invalidResponse }
             let code = (object["error"] as? Int) ?? (object["error"] as? String).flatMap(Int.init)
             if let code {
-                if code == 29 { earliestRequestAt = clock.now.addingTimeInterval(30) }
+                if code == 29 {
+                    earliestRequestAt = clock.now.addingTimeInterval(30)
+                    throw LastFMError.retryLater("Last.fm is busy. Aura will retry automatically.", after: 30)
+                }
                 throw LastFMError.api(code, object["message"] as? String ?? "Last.fm error \(code)")
             }
             return object

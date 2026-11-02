@@ -117,15 +117,15 @@ final class ScrobbleQueue {
                 case .retryLater(_, let minimumDelay):
                     // A daily limit or future timestamp is expected to clear. Don't
                     // announce it as stuck while the scheduled wait is still running.
-                    scheduleRetry(record, error: error, now: now, minimumDelay: minimumDelay, notifyIfStuck: false)
+                    scheduleRetry(record, error: error, now: clock.now, minimumDelay: minimumDelay, notifyIfStuck: false)
                 default:
                     let rateLimitDelay: TimeInterval = if case .api(let code, _) = error, code == 29 { 60 } else { 0 }
-                    scheduleRetry(record, error: error, now: now, minimumDelay: rateLimitDelay, notifyIfStuck: true)
+                    scheduleRetry(record, error: error, now: clock.now, minimumDelay: rateLimitDelay, notifyIfStuck: true)
                 }
             } catch {
                 record.attempts += 1
                 record.lastError = Redactor.redact(error.localizedDescription)
-                scheduleRetry(record, error: error, now: now, minimumDelay: 0, notifyIfStuck: true)
+                scheduleRetry(record, error: error, now: clock.now, minimumDelay: 0, notifyIfStuck: true)
             }
             store.save()
         }

@@ -1,5 +1,6 @@
 import AppKit
 import AuraCore
+import Darwin
 import Foundation
 import SwiftData
 import SwiftUI
@@ -59,6 +60,40 @@ struct PlaybackSessionTests {
 
         #expect(await tracker.active?.accumulatedPlayTime == 60)
         #expect(await tracker.active?.eligibility == .eligible)
+    }
+
+    @Test func startingAfterThresholdEmitsEligibilityForSubmission() async {
+        let tracker = PlaybackSessionTracker()
+        let events = await tracker.ingest(
+            .init(track: track, state: .playing, position: 60,
+                  observedAt: Date(timeIntervalSince1970: 1_000), confidence: .high))
+        #expect(events.count == 2)
+        #expect(events.contains { if case .started = $0 { true } else { false } })
+        #expect(events.contains { if case .eligible = $0 { true } else { false } })
+    }
+
+    @Test func repeatOneFinalizesAndStartsANewPlay() async throws {
+        let tracker = PlaybackSessionTracker()
+        let start = Date(timeIntervalSince1970: 1_000)
+        _ = await tracker.ingest(.init(track: track, state: .playing, position: 98, observedAt: start, confidence: .high))
+        let original = try #require(await tracker.active)
+        let events = await tracker.ingest(
+            .init(track: track, state: .playing, position: 1, observedAt: start.addingTimeInterval(3), confidence: .high))
+        #expect(events.contains { if case .finalized(let session) = $0 { session.id == original.id && session.outcome == .played } else { false } })
+        #expect(events.contains { if case .started(let session) = $0 { session.id != original.id } else { false } })
+        #expect(await tracker.active?.accumulatedPlayTime == 1)
+        #expect(await tracker.active?.eligibility == .listening)
+    }
+
+    @Test func backwardSeekInMiddleDoesNotCreateARepeat() async throws {
+        let tracker = PlaybackSessionTracker()
+        let start = Date(timeIntervalSince1970: 1_000)
+        _ = await tracker.ingest(.init(track: track, state: .playing, position: 60, observedAt: start, confidence: .high))
+        let original = try #require(await tracker.active)
+        let events = await tracker.ingest(
+            .init(track: track, state: .playing, position: 1, observedAt: start.addingTimeInterval(2), confidence: .high))
+        #expect(!events.contains { if case .finalized = $0 { true } else { false } })
+        #expect(await tracker.active?.id == original.id)
     }
 
     @Test func eligibleTrackRemainsActiveUntilPlaybackStops() async {
@@ -344,6 +379,79 @@ struct ArtworkTests {
         #expect(ArtworkService.directPublicArtworkURL(for: track) == artworkURL)
     }
 
+    @Test(arguments: [404, 200])
+    func brokenPlayerCoverFallsBackToCatalogForAppAndDiscord(playerStatus: Int) async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let image = try #require(Self.imageData())
+        let playerURL = try #require(URL(string: "https://player.example/expired.jpg"))
+        let coverURL = try #require(URL(string: "https://catalog.example/600x600bb.jpg"))
+        let track = TrackMetadata(
+            identity: .init(persistentID: "expired-cover"), title: "Track", artist: "Artist",
+            album: "Album", duration: 180, source: .localFile, appleMusicURL: nil,
+            artworkReference: .remote(playerURL), platform: .spotify
+        )
+        let requests = ArtworkRequestRecorder()
+        let service = ArtworkService(directory: directory, fetch: { request in
+            let url = try #require(request.url)
+            await requests.record(url)
+            if url == playerURL {
+                return (Data(), try #require(HTTPURLResponse(url: url, statusCode: playerStatus, httpVersion: nil, headerFields: nil)))
+            }
+            if url.host == "itunes.apple.com" {
+                let payload = Data(#"{"results":[{"trackName":"Track","artistName":"Artist","collectionName":"Album","artworkUrl100":"https://catalog.example/100x100bb.jpg"}]}"#.utf8)
+                return (payload, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            }
+            #expect(url == coverURL)
+            return (image, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+        })
+        let result = await service.artworkResult(for: track)
+        #expect(result?.data == image)
+        #expect(result?.source == .appleCatalog)
+        #expect(await service.publicArtworkURL(for: track) == coverURL)
+        #expect(await requests.count == 3)
+        #expect(await service.artworkResult(for: track)?.source == .memoryCache)
+        #expect(await requests.count == 3)
+        await service.invalidateArtwork(for: track.identity)
+        #expect(await service.publicArtworkURL(for: track) == playerURL)
+
+        let brokenCatalog = ArtworkService(directory: directory.appendingPathComponent("broken"), fetch: { request in
+            let url = try #require(request.url)
+            let body = url.host == "itunes.apple.com"
+                ? Data(#"{"results":[{"trackName":"Track","artistName":"Artist","collectionName":"Album","artworkUrl100":"https://catalog.example/100x100bb.jpg"}]}"#.utf8)
+                : Data("invalid image".utf8)
+            return (body, try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+        })
+        #expect(await brokenCatalog.artworkResult(for: track) == nil)
+        #expect(await brokenCatalog.publicArtworkURL(for: track) == nil)
+    }
+
+    @Test func catalogMissIsRetriedOnlyAfterCooldownOrInvalidation() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let requests = ArtworkRequestRecorder()
+        let clock = ImmediateTestClock(now: Date(timeIntervalSince1970: 1_000))
+        let track = TrackMetadata(
+            identity: .init(persistentID: "missing-cover"), title: "Track", artist: "Artist",
+            album: nil, duration: 180, source: .localFile, appleMusicURL: nil,
+            artworkReference: nil, platform: .spotify
+        )
+        let service = ArtworkService(directory: directory, clock: clock, fetch: { request in
+            let url = try #require(request.url)
+            await requests.record(url)
+            return (Data(#"{"results":[]}"#.utf8), try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)))
+        })
+        #expect(await service.artworkResult(for: track) == nil)
+        #expect(await service.publicArtworkURL(for: track) == nil)
+        #expect(await requests.count == 1)
+        clock.advance(by: 301)
+        #expect(await service.publicArtworkURL(for: track) == nil)
+        #expect(await requests.count == 2)
+        await service.invalidatePublicArtworkLookup(for: track.identity)
+        #expect(await service.publicArtworkURL(for: track) == nil)
+        #expect(await requests.count == 3)
+    }
+
     @Test func insecureRemoteArtworkIsUpgradedToHTTPSForDiscord() throws {
         let artworkURL = try #require(URL(string: "http://example.com/cover.jpg"))
         let track = TrackMetadata(
@@ -412,6 +520,43 @@ struct DiscordPresenceTests {
         let client = DiscordPresenceClient(applicationID: "test", runtimeRoots: [directory.path])
 
         #expect(!(await client.probeAvailability()))
+    }
+
+    @Test func staleSocketDoesNotHideALiveDiscordSlot() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Data("stale".utf8).write(to: directory.appendingPathComponent("discord-ipc-0"))
+        let path = directory.appendingPathComponent("discord-ipc-1").path
+        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        #expect(fd >= 0)
+        defer { Darwin.close(fd) }
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        let pathCapacity = MemoryLayout.size(ofValue: address.sun_path)
+        withUnsafeMutablePointer(to: &address.sun_path.0) { destination in
+            path.withCString { source in _ = Darwin.strncpy(destination, source, pathCapacity) }
+        }
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        #expect(bound == 0)
+        #expect(Darwin.listen(fd, 1) == 0)
+        let client = DiscordPresenceClient(applicationID: "test", runtimeRoots: [directory.path])
+        #expect(await client.probeAvailability())
+        #expect(await client.socketPath == path)
+        let accepted = Darwin.accept(fd, nil, nil)
+        #expect(accepted >= 0)
+        defer { Darwin.close(accepted) }
+        // A second idle probe must reuse the accepted connection.
+        _ = Darwin.fcntl(fd, F_SETFL, O_NONBLOCK)
+        #expect(await client.probeAvailability())
+        let unexpected = Darwin.accept(fd, nil, nil)
+        #expect(unexpected == -1)
+        if unexpected >= 0 { Darwin.close(unexpected) }
+        await client.disconnect()
     }
 
     @Test func externalArtworkURLIsSentAsLargeImage() throws {
@@ -715,6 +860,58 @@ struct LastFMTransportTests {
         #expect(body.contains("timestamp=1000"))
         #expect(body.contains("sk=session"))
         #expect(body.contains("api_sig="))
+    }
+
+    @Test func rateLimitPreservesServerRetryDelay() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = CredentialStore(baseDirectory: directory)
+        try await store.set("key", for: .lastFMAPIKey)
+        try await store.set("secret", for: .lastFMSecret)
+        try await store.set("session", for: .lastFMSessionKey)
+        TestURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 429, httpVersion: nil,
+                headerFields: ["Retry-After": "180"]
+            )!
+            return (response, Data())
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [TestURLProtocol.self]
+        let client = LastFMClient(credentials: store, session: URLSession(configuration: configuration))
+        do {
+            try await client.scrobble(title: "Track", artist: "Artist", album: nil, duration: 180, startedAt: .now)
+            Issue.record("Expected the rate limit to defer the scrobble")
+        } catch LastFMError.retryLater(_, let delay) {
+            #expect(delay == 180)
+        }
+    }
+
+    @Test func youtubeFailureDoesNotKeepOldTrackPlaying() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let credentials = CredentialStore(baseDirectory: directory)
+        try await credentials.set("token", for: .ytmDesktopToken)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [TestURLProtocol.self]
+        let clock = ImmediateTestClock(now: Date(timeIntervalSince1970: 1_000))
+        let provider = YTMDesktopPlaybackProvider(
+            credentials: credentials, client: YTMDesktopClient(session: URLSession(configuration: configuration)), clock: clock
+        )
+        TestURLProtocol.handler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let body = #"{"player":{"trackState":1,"videoProgress":10},"video":{"author":"Artist","title":"Track","durationSeconds":180,"id":"abc"}}"#
+            return (response, Data(body.utf8))
+        }
+        #expect(await provider.snapshot().playback?.track?.title == "Track")
+        clock.advance(by: 6)
+        TestURLProtocol.handler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+        let failed = await provider.snapshot()
+        #expect(failed.playback == nil)
+        if case .unavailable = failed.health {} else { Issue.record("Expected provider failure") }
     }
 
     @Test func radioScrobbleOmitsUnknownDurationAndMarksTrackAsNotChosen() {
@@ -1059,6 +1256,21 @@ struct SecurityTests {
         #expect(await reloaded.value(for: .lastFMSecret) == "secret-value")
         let attributes = try FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("credentials.json").path)
         #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+    }
+
+    @Test func failedCredentialWriteDoesNotChangeInMemoryValue() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = CredentialStore(baseDirectory: directory)
+        try await store.set("original", for: .lastFMSecret)
+        try FileManager.default.removeItem(at: directory)
+        try Data("blocked".utf8).write(to: directory)
+        do {
+            try await store.set("new", for: .lastFMSecret)
+            Issue.record("Expected credential persistence to fail")
+        } catch {
+            #expect(await store.value(for: .lastFMSecret) == "original")
+        }
     }
 
     @Test func credentialsMigrateFromTheRenamedPresenceFMDirectory() async throws {
@@ -2150,4 +2362,10 @@ private final class ImmediateTestClock: AppClock, @unchecked Sendable {
     var now: Date { lock.withLock { value } }
     func sleep(until deadline: Date) async throws { lock.withLock { value = max(value, deadline) } }
     func advance(by interval: TimeInterval) { lock.withLock { value = value.addingTimeInterval(interval) } }
+}
+
+private actor ArtworkRequestRecorder {
+    private var urls: [URL] = []
+    func record(_ url: URL) { urls.append(url) }
+    var count: Int { urls.count }
 }

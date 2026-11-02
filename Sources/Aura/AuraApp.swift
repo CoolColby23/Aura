@@ -36,7 +36,7 @@ struct AuraApp: App {
                     .environment(updateManager)
             }
         }
-        .defaultSize(width: 980, height: 680)
+        .defaultSize(width: 1100, height: 760)
         .modelContainer(model.store.container)
 
         MenuBarExtra {
@@ -54,10 +54,10 @@ struct AuraApp: App {
 
         Settings {
             ThemedSceneRoot(preferences: model.preferences) {
-                SettingsView()
+                SettingsWindowView()
                     .environment(model)
                     .environment(updateManager)
-                    .frame(minWidth: 780, minHeight: 560)
+                    .frame(minWidth: 620, idealWidth: 680, minHeight: 520, idealHeight: 640)
             }
         }
         .modelContainer(model.store.container)

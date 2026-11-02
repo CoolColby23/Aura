@@ -2,6 +2,24 @@
 
 ## 2.0.1 - Unreleased
 
+### Interface overhaul (Mac, menu bar, widget, website)
+
+- One sidebar: Settings categories now sit in the dashboard sidebar as a collapsible group, System Settings style, instead of a second sidebar nested inside the Settings page. The ⌘, window uses native toolbar tabs over the same panes.
+- Connections split into dedicated **Discord** and **Last.fm** settings pages. Discord settings open with a live preview and are grouped by text, timing, images, and link; Last.fm walks through setup as numbered steps.
+- Now Playing drops the boxed hero: the whole page takes ambient light from the cover, the artwork carries the halo's sweeping glow while it plays, and a single "Where it's going" row shows player → Discord → Last.fm with a fix-it action on each stage.
+- Every page opens with a large title; the toolbar keeps only controls. Quick Open moves into the toolbar and gains arrow-key navigation, grouped results, and hover selection.
+- History uses one tab switcher (Overview, Insights, Activity, Last.fm). Overview sets the period's numbers as one band; Activity groups plays by day; the weekly recap reads as a sentence.
+- Pending Plays, Status & Support, onboarding, the correction sheet, and the theme picker are rebuilt on shared components. Onboarding opens with "Let's give your music an aura." and folds startup and notifications into one step.
+- The sidebar foot is a single Private Mode control; hidden sidebar pages are managed from Settings → General.
+- The menu-bar panel follows Control Center: modules on the system material, round toggles for Discord, Last.fm, and Private Mode, and larger transport controls.
+- The desktop widget gains a medium layout with an eyebrow and times, a "Live" badge, and on-brand private and empty states.
+- The website is redesigned around an animated CSS halo, a player → Discord → Last.fm story, a feature bento, and new screenshots of the current app.
+- Content surfaces no longer use Liquid Glass; glass is reserved for controls. Only the one surface meant to draw the eye carries the tinted glow.
+
+- Keep failed credential writes out of the active in-memory configuration, clear stale YouTube Music playback after companion failures, and honor Last.fm's requested retry delay.
+- Try every Discord IPC socket slot so a stale socket cannot hide a running Discord instance.
+- Harden iPhone CloudKit coordination against duplicate submissions and transient fetch failures, and reject mismatched Last.fm authorization callbacks.
+
 - Update Sparkle to 2.10.0, including its macOS 27 delta-update fix, and refresh the CodeQL and GitHub release actions.
 - Keep plays Last.fm refuses for a future timestamp or the daily scrobble limit in the retry queue. Filtered artists, filtered tracks, and timestamps that are already too old still stop. Mac and iPhone now share that decision.
 - Show the Pending Plays recovery banner only when a play has stopped retrying, so a shared outage or rate limit does not ask someone to review Last.fm settings.

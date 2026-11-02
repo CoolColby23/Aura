@@ -76,10 +76,11 @@ actor CompanionLastFMClient {
             url.host?.lowercased() == "lastfm-auth"
         else { throw CompanionLastFMError.invalidResponse }
         if let token = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
-            .first(where: { $0.name == "token" })?.value,
-            !token.isEmpty
+            .first(where: { $0.name == "token" })?.value
         {
-            UserDefaults.standard.set(token, forKey: "AuraLastFMAuthToken")
+            guard !token.isEmpty,
+                token == UserDefaults.standard.string(forKey: "AuraLastFMAuthToken")
+            else { throw CompanionLastFMError.invalidResponse }
         }
     }
 
