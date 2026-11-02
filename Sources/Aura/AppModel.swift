@@ -54,9 +54,9 @@ final class AppModel {
     @ObservationIgnored let store: PersistenceStore
     @ObservationIgnored private let clock: any AppClock
     @ObservationIgnored private let credentials = CredentialStore()
-    @ObservationIgnored private lazy var monitor = PlaybackMonitor(credentials: credentials, clock: clock)
+    @ObservationIgnored private let monitor: PlaybackMonitor
     @ObservationIgnored private let tracker = PlaybackSessionTracker()
-    @ObservationIgnored private lazy var artwork = ArtworkService(clock: clock)
+    @ObservationIgnored private let artwork: ArtworkService
     @ObservationIgnored private let notifications: NotificationCoordinator
     @ObservationIgnored private lazy var discord = DiscordPresenceClient(applicationID: preferences.discordApplicationID)
     @ObservationIgnored private lazy var lastFM = LastFMClient(credentials: credentials, clock: clock)
@@ -76,12 +76,16 @@ final class AppModel {
         preferences: Preferences = .shared,
         notifications: NotificationCoordinator = NotificationCoordinator(),
         clock: any AppClock = SystemAppClock(),
-        launchInDemoMode: Bool = false
+        launchInDemoMode: Bool = false,
+        playbackMonitor: PlaybackMonitor? = nil,
+        artworkService: ArtworkService? = nil
     ) {
         self.store = store
         self.preferences = preferences
         self.notifications = notifications
         self.clock = clock
+        self.monitor = playbackMonitor ?? PlaybackMonitor(credentials: credentials, clock: clock)
+        self.artwork = artworkService ?? ArtworkService(clock: clock)
         demoModeEnabled = launchInDemoMode
         onboardingPresented = launchInDemoMode ? false : !preferences.onboardingComplete
         discordStatus = preferences.discordEnabled ? .inactive : .disabled
@@ -181,7 +185,11 @@ final class AppModel {
                 // Publish the new metadata immediately. Artwork is allowed to arrive in a
                 // second update so a catalog lookup never delays the song transition.
                 await updateDiscord()
-                if changedTrack, !demoModeEnabled { await updateArtwork(for: value.track) }
+                if changedTrack, !demoModeEnabled {
+                    artworkTask = Task { [weak self = self] in
+                        await self?.updateArtwork(for: value.track)
+                    }
+                }
                 await updateOperationalNotifications()
             }
         }
@@ -229,7 +237,7 @@ final class AppModel {
     func retryCurrentArtwork() {
         guard let track = snapshot.track else { return }
         artworkTask?.cancel()
-        artworkTask = Task { [weak self] in
+        artworkTask = Task { [weak self = self] in
             guard let self else { return }
             self.artworkLoadState = .loading
             await self.artwork.invalidateArtwork(for: track.identity)
@@ -522,7 +530,9 @@ final class AppModel {
 
     func setDiscordEnabled(_ enabled: Bool) {
         preferences.discordEnabled = enabled
-        Task { enabled ? await updateDiscord() : await discord.clear() }
+        Task {
+            if enabled { await updateDiscord() } else { await discord.clear(); await discord.disconnect() }
+        }
         discordStatus = enabled ? .inactive : .disabled
     }
 
@@ -532,6 +542,8 @@ final class AppModel {
     }
 
     func refreshDiscord() {
+        guard preferences.discordEnabled else { return }
+        setDiscordStatus(.connecting)
         Task {
             await discord.disconnect(); await updateDiscord()
         }
@@ -858,7 +870,7 @@ final class AppModel {
             return CaptureStatusPresentation(
                 status: .queued,
                 headline: "Ready to scrobble",
-                explanation: "The listening threshold has been reached and submission is next.",
+                explanation: "The listening threshold has been reached. Aura will submit this play when the song ends or changes.",
                 progress: 1,
                 timestamp: session.startedAt
             )
@@ -909,7 +921,7 @@ final class AppModel {
         case .grantPlaybackPermission:
             openAutomationSettings()
         case .reconnectLastFM, .openSettings:
-            openSettings(.integrations)
+            openSettings(.lastFM)
         case .retryQueue:
             navigate(to: .queue)
         case .recheckNow:
@@ -942,40 +954,25 @@ final class AppModel {
 
     private func updateArtwork(for track: TrackMetadata?) async {
         guard let track else {
-            artworkTask?.cancel(); setArtworkData(nil); artworkLoadState = .idle; discordArtworkURL = nil
+            setArtworkData(nil); artworkLoadState = .idle; discordArtworkURL = nil
             return
         }
         let identity = track.identity
         let result = await artwork.artworkResult(for: track)
         let data = result?.data
-        guard snapshot.track?.identity == identity else { return }
+        guard !Task.isCancelled, snapshot.track?.identity == identity else { return }
         setArtworkData(data)
         artworkLoadState = result.map { .available($0.source) } ?? .loading
         if let data {
             store.backfillArtwork(for: identity.persistentID, artworkData: data)
         }
-        artworkTask = Task { [weak self] in
-            guard let self else { return }
-            let publicURL = await self.artwork.publicArtworkURL(for: track)
-            let downloadedData: Data?
-            if data == nil, let publicURL {
-                downloadedData = await self.artwork.downloadedArtwork(from: publicURL, for: identity)
-            } else {
-                downloadedData = nil
-            }
-            guard !Task.isCancelled, self.snapshot.track?.identity == identity else { return }
-            if let downloadedData {
-                self.setArtworkData(downloadedData)
-                self.artworkLoadState = .available(
-                    ArtworkService.directPublicArtworkURL(for: track) == publicURL ? .playerURL : .appleCatalog
-                )
-                self.store.backfillArtwork(for: identity.persistentID, artworkData: downloadedData)
-            } else if data == nil {
-                self.artworkLoadState = .unavailable
-            }
-            self.discordArtworkURL = publicURL
-            await self.updateDiscord()
+        let publicURL = await artwork.publicArtworkURL(for: track)
+        guard !Task.isCancelled, snapshot.track?.identity == identity else { return }
+        if data == nil {
+            artworkLoadState = .available(.generatedPlaceholder)
         }
+        discordArtworkURL = publicURL
+        await updateDiscord()
     }
 
     private func setArtworkData(_ data: Data?) {
@@ -1299,10 +1296,10 @@ final class Preferences {
         discordActivityName = defaults.string(forKey: "discordActivityName") ?? "Aura"
         discordTimerStyle =
             DiscordTimerStyle(rawValue: defaults.string(forKey: "discordTimerStyle") ?? "")
-            ?? ((defaults.object(forKey: "showTimer") as? Bool ?? true) ? .remaining : .hidden)
+            ?? ((defaults.object(forKey: "showTimer") as? Bool ?? true) ? .progress : .hidden)
         discordLargeImageText = defaults.string(forKey: "discordLargeImageText") ?? "{album}"
         discordSmallImageText = defaults.string(forKey: "discordSmallImageText") ?? "Playing on {platform}"
-        discordSharePaused = defaults.object(forKey: "discordSharePaused") as? Bool ?? false
+        discordSharePaused = defaults.object(forKey: "discordSharePaused") as? Bool ?? true
         discordPausedText = defaults.string(forKey: "discordPausedText") ?? "Paused • {artist}"
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
         historyRetentionDays = defaults.object(forKey: "historyRetentionDays") as? Int ?? 365
@@ -1427,7 +1424,8 @@ enum DiscordTemplate {
     }
 
     private static func durationLabel(_ interval: TimeInterval) -> String {
-        let seconds = max(0, Int(interval.rounded()))
+        guard interval.isFinite, interval < Double(Int.max) else { return "—" }
+        let seconds = Int(max(0, interval))
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 }

@@ -1,8 +1,23 @@
 import SwiftUI
 
+/// How a surface separates itself from the canvas behind it.
+///
+/// Content never uses Liquid Glass — glass belongs to the controls and
+/// navigation that float above content. A surface is a quiet fill one step
+/// lighter than the canvas; only `raised` adds the brand's tinted glow.
+enum AuraSurfaceStyle {
+    /// A group of rows, a chart, a settings block. The default.
+    case plain
+    /// The one surface on a page that should draw the eye. Adds a tinted glow.
+    case raised
+    /// A block nested inside another surface, or a callout on the canvas. A
+    /// faint tint, no edge.
+    case inset
+}
+
 extension View {
-    func auraCard(elevated: Bool = false) -> some View {
-        modifier(AuraCardModifier(elevated: elevated))
+    func auraSurface(_ style: AuraSurfaceStyle = .plain, radius: CGFloat = BrandRadius.md) -> some View {
+        modifier(AuraSurfaceModifier(style: style, radius: radius))
     }
 
     @ViewBuilder
@@ -18,80 +33,46 @@ extension View {
         }
     }
 
+    /// The page canvas: the theme's canvas color, lit softly from the top
+    /// corner. One light source, never a pattern of blobs.
     func auraPanelBackground() -> some View {
         modifier(AuraPanelBackground())
     }
 
-    func auraSidebarChrome() -> some View {
-        modifier(AuraSidebarChrome())
-    }
-
-    func auraHeroGlow(active: Bool = true) -> some View {
-        modifier(AuraHeroGlowModifier(active: active))
+    /// Applies the brand's tracked all-caps label treatment.
+    func auraEyebrow() -> some View {
+        font(BrandTypography.eyebrow)
+            .tracking(1.05)
+            .textCase(.uppercase)
     }
 }
 
-private struct AuraHeroGlowModifier: ViewModifier {
-    let active: Bool
+private struct AuraSurfaceModifier: ViewModifier {
+    let style: AuraSurfaceStyle
+    let radius: CGFloat
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appTheme) private var theme
 
     func body(content: Content) -> some View {
-        let elevation: BrandElevation = active ? .high : .low
-        return content.shadow(
-            color: elevation.color(tint: theme.primaryColor, scheme: colorScheme),
-            radius: elevation.radius,
-            y: elevation.y
-        )
-    }
-}
-
-private struct AuraCardModifier: ViewModifier {
-    let elevated: Bool
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.appTheme) private var theme
-
-    private var cornerRadius: CGFloat { elevated ? BrandRadius.lg : BrandRadius.md }
-
-    func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            content
-                .background(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(theme.surface(for: colorScheme, elevated: elevated))
-                )
-                .glassEffect(
-                    .regular.tint(theme.primaryColor.opacity(elevated ? 0.07 : 0.04)),
-                    in: .rect(cornerRadius: cornerRadius)
-                )
-                .shadow(
-                    color: elevated ? BrandElevation.low.color(tint: theme.primaryColor, scheme: colorScheme) : .clear,
-                    radius: elevated ? BrandElevation.low.radius : 0,
-                    y: elevated ? BrandElevation.low.y : 0
-                )
-        } else {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        switch style {
+        case .inset:
+            content.background(theme.primaryColor.opacity(colorScheme == .dark ? 0.08 : 0.045), in: shape)
+        case .plain, .raised:
+            let glow = BrandElevation.low.color(tint: theme.primaryColor, scheme: colorScheme)
             content
                 .background {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(fill)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .strokeBorder(stroke, lineWidth: 1)
-                        )
+                    shape
+                        .fill(theme.surface(for: colorScheme, elevated: true))
+                        .overlay { shape.strokeBorder(BrandColors.hairline, lineWidth: 1) }
                         .shadow(
-                            color: elevated ? BrandElevation.low.color(tint: theme.primaryColor, scheme: colorScheme) : .clear,
-                            radius: elevated ? BrandElevation.low.radius : 0,
-                            y: elevated ? BrandElevation.low.y : 0
+                            color: style == .raised ? glow : .clear,
+                            radius: BrandElevation.low.radius,
+                            y: BrandElevation.low.y
                         )
                 }
         }
     }
-
-    private var fill: some ShapeStyle {
-        AnyShapeStyle(theme.surface(for: colorScheme, elevated: elevated))
-    }
-
-    private var stroke: Color { BrandColors.hairline }
 }
 
 private struct AuraPanelBackground: ViewModifier {
@@ -101,58 +82,21 @@ private struct AuraPanelBackground: ViewModifier {
     func body(content: Content) -> some View {
         content.background {
             ZStack {
-                if colorScheme == .dark {
-                    LinearGradient(
-                        colors: [theme.darkBackground, theme.darkBackground.opacity(0.92), .black], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    LinearGradient(
-                        colors: [theme.primaryColor.opacity(0.14), .clear, theme.secondaryColor.opacity(0.08)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                } else {
-                    LinearGradient(colors: [theme.lightBackground, .white.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    LinearGradient(
-                        colors: [theme.secondaryColor.opacity(0.10), .clear, theme.primaryColor.opacity(0.08)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                }
-                Circle()
-                    .fill(theme.secondaryColor.opacity(colorScheme == .dark ? 0.10 : 0.07))
-                    .frame(width: 260, height: 260)
-                    .blur(radius: 50)
-                    .offset(x: -130, y: -180)
-                Circle()
-                    .fill(theme.primaryColor.opacity(colorScheme == .dark ? 0.10 : 0.06))
-                    .frame(width: 320, height: 320)
-                    .blur(radius: 70)
-                    .offset(x: 180, y: 180)
+                theme.canvas(for: colorScheme)
+                RadialGradient(
+                    colors: [theme.secondaryColor.opacity(colorScheme == .dark ? 0.12 : 0.10), .clear],
+                    center: .topTrailing,
+                    startRadius: 0,
+                    endRadius: 720
+                )
+                RadialGradient(
+                    colors: [theme.primaryColor.opacity(colorScheme == .dark ? 0.08 : 0.05), .clear],
+                    center: .bottomLeading,
+                    startRadius: 0,
+                    endRadius: 640
+                )
             }
             .ignoresSafeArea()
         }
-    }
-}
-
-private struct AuraSidebarChrome: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.appTheme) private var theme
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                ZStack {
-                    if colorScheme == .dark {
-                        theme.darkBackground
-                    } else {
-                        theme.lightBackground
-                    }
-                    LinearGradient(
-                        colors: [theme.secondaryColor.opacity(0.10), .clear, theme.primaryColor.opacity(0.08)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                }
-                .ignoresSafeArea()
-            }
     }
 }

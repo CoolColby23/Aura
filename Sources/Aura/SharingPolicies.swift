@@ -26,8 +26,8 @@ struct DiscordPresenceProfile: Codable, Equatable, Identifiable {
         activityName: "Aura", lineOne: DiscordLineFormat.title.rawValue,
         lineTwo: DiscordLineFormat.artistAndAlbum.rawValue,
         customLineOne: "Listening to {artist}", customLineTwo: "{title} • {album}",
-        showAlbum: true, timerStyle: DiscordTimerStyle.remaining.rawValue,
-        sharePaused: false, pausedText: "Paused • {artist}",
+        showAlbum: true, timerStyle: DiscordTimerStyle.progress.rawValue,
+        sharePaused: true, pausedText: "Paused • {artist}",
         largeImage: DiscordLargeImage.artwork.rawValue, largeImageText: "{album}",
         smallImage: DiscordSmallImage.playbackPlatform.rawValue,
         smallImageText: "Playing on {platform}", showLink: true, buttonLabel: ""
@@ -52,7 +52,7 @@ struct DiscordPresenceProfile: Codable, Equatable, Identifiable {
         lineTwo: DiscordLineFormat.custom.rawValue,
         customLineOne: "{title} • {position}/{duration}",
         customLineTwo: "{artist} — {album}", showAlbum: true,
-        timerStyle: DiscordTimerStyle.remaining.rawValue, sharePaused: true,
+        timerStyle: DiscordTimerStyle.progress.rawValue, sharePaused: true,
         pausedText: "Paused • {artist}", largeImage: DiscordLargeImage.artwork.rawValue,
         largeImageText: "{album}", smallImage: DiscordSmallImage.playbackPlatform.rawValue,
         smallImageText: "Playing on {platform}", showLink: true, buttonLabel: ""

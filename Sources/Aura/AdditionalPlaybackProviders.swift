@@ -57,8 +57,11 @@ actor YTMDesktopPlaybackProvider: PlaybackProvider {
                 health: lastSnapshot == nil ? .inactive : .available, observedAt: clock.now
             )
         } catch {
+            // A disconnected companion cannot confirm that the old track is
+            // still playing. Keeping it would create phantom listening time.
+            lastSnapshot = nil
             return ProviderSnapshot(
-                provider: id, playback: extrapolated(lastSnapshot),
+                provider: id, playback: nil,
                 health: .unavailable(error.localizedDescription), observedAt: clock.now
             )
         }

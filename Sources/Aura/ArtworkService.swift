@@ -33,22 +33,28 @@ actor ArtworkService {
     private let diskLimit: Int
     private let directory: URL
     private let clock: any AppClock
+    private let fetch: @Sendable (URLRequest) async throws -> (Data, URLResponse)
     private var memory: [String: Data] = [:]
     private var accessOrder: [String] = []
     private var catalogURLs: [String: URL] = [:]
     private var catalogMisses: [String: Date] = [:]
+    private var failedPlayerURLs: [String: (url: URL, date: Date)] = [:]
     private let catalogMissRetryInterval: TimeInterval = 5 * 60
 
     init(
         memoryLimit: Int = IntegrationPolicy.artworkMemoryEntries,
         diskLimit: Int = IntegrationPolicy.artworkDiskEntries,
         directory: URL? = nil,
-        clock: any AppClock = SystemAppClock()
+        clock: any AppClock = SystemAppClock(),
+        fetch: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = {
+            try await URLSession.shared.data(for: $0)
+        }
     ) {
         self.memoryLimit = max(1, memoryLimit)
         self.diskLimit = max(1, diskLimit)
         self.directory = directory ?? FileManager.default.temporaryDirectory.appendingPathComponent("Aura-Artwork", isDirectory: true)
         self.clock = clock
+        self.fetch = fetch
     }
 
     func artwork(for track: TrackMetadata) async -> Data? {
@@ -56,6 +62,7 @@ actor ArtworkService {
     }
 
     func artworkResult(for track: TrackMetadata) async -> ArtworkLoadResult? {
+        guard !Task.isCancelled else { return nil }
         let key = cacheKey(for: track.identity)
         if let data = memory[key] {
             touch(key)
@@ -73,8 +80,14 @@ actor ArtworkService {
                 return ArtworkLoadResult(data: cleaned, source: .localFile)
             }
         case .remote(let sourceURL):
-            if let downloaded = await downloadedArtwork(from: sourceURL, for: track.identity) {
-                return ArtworkLoadResult(data: downloaded, source: .playerURL)
+            if shouldTryPlayerURL(sourceURL, key: key) {
+                if let downloaded = await downloadedArtwork(from: sourceURL, for: track.identity) {
+                    failedPlayerURLs.removeValue(forKey: key)
+                    return ArtworkLoadResult(data: downloaded, source: .playerURL)
+                }
+                guard !Task.isCancelled else { return nil }
+                failedPlayerURLs[key] = (sourceURL, clock.now)
+                trimLookupCaches()
             }
         case .embedded(let data):
             if let cleaned = Self.extractImageBytes(data) {
@@ -87,10 +100,11 @@ actor ArtworkService {
         var currentArtwork: Data?
         if track.platform == .appleMusic {
             for attempt in 0..<4 {
-                if let data = Self.readCurrentMusicArtwork(expectedPersistentID: track.identity.persistentID), let cleaned = Self.extractImageBytes(data) {
+                if let data = Self.readCurrentMusicArtwork(for: track), let cleaned = Self.extractImageBytes(data) {
                     currentArtwork = cleaned
                     break
                 }
+                guard !Task.isCancelled else { return nil }
                 if attempt < 3 { try? await clock.sleep(until: clock.now.addingTimeInterval(0.15)) }
             }
         }
@@ -103,11 +117,17 @@ actor ArtworkService {
         }
 
         // Automatic fallback: fetch catalog artwork URL and download
-        if let publicURL = await publicArtworkURL(for: track),
-            let downloaded = await downloadedArtwork(from: publicURL, for: track.identity)
-        {
-            let source: ArtworkSource = Self.directPublicArtworkURL(for: track) == publicURL ? .playerURL : .appleCatalog
-            return ArtworkLoadResult(data: downloaded, source: source)
+        if let publicURL = await publicArtworkURL(for: track) {
+            if let downloaded = await downloadedArtwork(from: publicURL, for: track.identity) {
+                let source: ArtworkSource = Self.directPublicArtworkURL(for: track) == publicURL ? .playerURL : .appleCatalog
+                return ArtworkLoadResult(data: downloaded, source: source)
+            }
+            guard !Task.isCancelled else { return nil }
+            // A catalog hit is not usable artwork until its image loads. Avoid
+            // handing a known-broken cover to Discord or retrying every poll.
+            catalogURLs.removeValue(forKey: key)
+            catalogMisses[key] = clock.now
+            trimLookupCaches()
         }
         return nil
     }
@@ -148,8 +168,10 @@ actor ArtworkService {
     /// Local artwork bytes never leave the Mac.
     func publicArtworkURL(for track: TrackMetadata) async -> URL? {
         let key = cacheKey(for: track.identity)
-        if let directURL = Self.directPublicArtworkURL(for: track) {
-            catalogURLs[key] = directURL
+        guard !Task.isCancelled else { return nil }
+        if let directURL = Self.directPublicArtworkURL(for: track),
+            shouldTryPlayerURL(directURL, key: key)
+        {
             return directURL
         }
         if let cached = catalogURLs[key] { return cached }
@@ -162,12 +184,17 @@ actor ArtworkService {
 
         let queries = catalogSearchTerms(for: track)
         for term in queries {
+            guard !Task.isCancelled else { return nil }
             if let result = await catalogArtworkURL(term: term, track: track) {
+                guard !Task.isCancelled else { return nil }
                 catalogURLs[key] = result
+                trimLookupCaches()
                 return result
             }
         }
+        guard !Task.isCancelled else { return nil }
         catalogMisses[key] = clock.now
+        trimLookupCaches()
         return nil
     }
 
@@ -209,7 +236,7 @@ actor ArtworkService {
             var request = URLRequest(url: url)
             request.timeoutInterval = IntegrationPolicy.artworkTimeout
             request.setValue("Aura/1", forHTTPHeaderField: "User-Agent")
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200,
                 let payload = try? JSONDecoder().decode(CatalogSearchResponse.self, from: data),
                 !payload.results.isEmpty
@@ -236,6 +263,7 @@ actor ArtworkService {
         let key = cacheKey(for: identity)
         catalogURLs.removeValue(forKey: key)
         catalogMisses.removeValue(forKey: key)
+        failedPlayerURLs.removeValue(forKey: key)
     }
 
     func invalidateArtwork(for identity: TrackIdentity) {
@@ -247,19 +275,41 @@ actor ArtworkService {
         )
         catalogURLs.removeValue(forKey: key)
         catalogMisses.removeValue(forKey: key)
+        failedPlayerURLs.removeValue(forKey: key)
     }
 
     func downloadedArtwork(from url: URL, for identity: TrackIdentity) async -> Data? {
         do {
             var request = URLRequest(url: url)
             request.timeoutInterval = IntegrationPolicy.artworkTimeout
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await fetch(request)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200,
                 data.count <= IntegrationPolicy.artworkDownloadLimit, let cleaned = Self.extractImageBytes(data)
             else { return nil }
+            guard !Task.isCancelled else { return nil }
             return cache(cleaned, for: identity) ? cleaned : nil
         } catch {
             return nil
+        }
+    }
+
+    private func shouldTryPlayerURL(_ url: URL, key: String) -> Bool {
+        guard let failure = failedPlayerURLs[key],
+            DiscordMediaURL.normalizedHTTPSArtworkURL(failure.url) == DiscordMediaURL.normalizedHTTPSArtworkURL(url)
+        else { return true }
+        return clock.now.timeIntervalSince(failure.date) >= catalogMissRetryInterval
+    }
+
+    private func trimLookupCaches() {
+        // Lookup metadata must be bounded too, even when no image downloads succeed.
+        for key in Array(catalogURLs.keys).prefix(max(0, catalogURLs.count - diskLimit)) {
+            catalogURLs.removeValue(forKey: key)
+        }
+        for key in catalogMisses.sorted(by: { $0.value < $1.value }).prefix(max(0, catalogMisses.count - diskLimit)).map(\.key) {
+            catalogMisses.removeValue(forKey: key)
+        }
+        for key in failedPlayerURLs.sorted(by: { $0.value.date < $1.value.date }).prefix(max(0, failedPlayerURLs.count - diskLimit)).map(\.key) {
+            failedPlayerURLs.removeValue(forKey: key)
         }
     }
 
@@ -316,12 +366,25 @@ actor ArtworkService {
         return nil
     }
 
-    nonisolated private static func readCurrentMusicArtwork(expectedPersistentID: String) -> Data? {
+    nonisolated private static func readCurrentMusicArtwork(for track: TrackMetadata) -> Data? {
+        // Stream tracks have a synthesized Aura identity, not a Music persistent ID.
+        // Verify their metadata instead so their local cover can still be read.
+        let expectedPersistentID = track.identity.persistentID
+        let identityCheck: String
+        if expectedPersistentID.hasPrefix("apple-radio:") || expectedPersistentID.hasPrefix("apple:") {
+            identityCheck = """
+                if (name of current track as text) is not "\(track.title.appleScriptEscaped)" then return missing value
+                set currentArtist to artist of current track as text
+                if currentArtist is not "" and currentArtist is not "\(track.artist.appleScriptEscaped)" then return missing value
+                """
+        } else {
+            identityCheck = "if (persistent ID of current track as text) is not \"\(expectedPersistentID.appleScriptEscaped)\" then return missing value"
+        }
         let script = """
             tell application "Music"
               if player state is stopped then return missing value
               try
-                if (persistent ID of current track as text) is not "\(expectedPersistentID.appleScriptEscaped)" then return missing value
+                \(identityCheck)
                 return data of artwork 1 of current track
               on error
                 return missing value

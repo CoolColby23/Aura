@@ -6,94 +6,162 @@ struct CommandPaletteView: View {
     @Environment(\.appTheme) private var theme
     @Environment(\.colorScheme) private var colorScheme
     @State private var query = ""
+    @State private var selectedID: String?
+    /// Set only by the arrow keys. Hovering also moves the selection, but it
+    /// must not scroll the list out from under the pointer.
+    @State private var scrollTarget: String?
     @FocusState private var searchFocused: Bool
 
     var body: some View {
+        let results = filteredCommands
+        let selection = selectedID.flatMap { id in results.first { $0.id == id } } ?? results.first
         VStack(spacing: 0) {
             HStack(spacing: BrandMetrics.cardContentSpacing) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Open a page or run an action", text: $query)
-                    .textFieldStyle(.plain)
                     .font(.title3)
+                    .foregroundStyle(.secondary)
+                TextField("Go to a page, setting, or action", text: $query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 20, weight: .regular, design: .rounded))
                     .focused($searchFocused)
-                    .onSubmit {
-                        guard let command = filteredCommands.first else { return }
-                        command.action()
-                        dismiss()
+                    .onSubmit { run(selection) }
+                    .onKeyPress(.downArrow) {
+                        move(1, in: results, from: selection)
+                        return .handled
                     }
-                Text("⌘K")
-                    .font(.caption.monospaced().weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, BrandMetrics.capsuleHorizontal)
-                    .padding(.vertical, BrandMetrics.capsuleVertical)
-                    .background(.quaternary, in: .rect(cornerRadius: BrandRadius.xxs, style: .continuous))
+                    .onKeyPress(.upArrow) {
+                        move(-1, in: results, from: selection)
+                        return .handled
+                    }
+                    .onChange(of: query) { _, _ in selectedID = nil }
+                KeyCap(text: "esc")
             }
-            .padding(BrandSpacing.md)
+            .padding(.horizontal, BrandSpacing.lg)
+            .padding(.vertical, BrandSpacing.md)
 
-            Divider()
+            Rectangle().fill(BrandColors.hairline).frame(height: 1)
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: BrandSpacing.xs) {
-                    if filteredCommands.isEmpty {
-                        ContentUnavailableView.search(text: query)
-                            .frame(maxWidth: .infinity, minHeight: 280)
-                    } else {
-                        let defaultCommandID = filteredCommands.first?.id
-                        ForEach(filteredCommands) { command in
-                            let isDefault = command.id == defaultCommandID
-                            Button {
-                                command.action()
-                                dismiss()
-                            } label: {
-                                HStack(spacing: BrandMetrics.cardContentSpacing) {
-                                    Image(systemName: command.symbol)
-                                        .font(.callout.weight(.semibold))
-                                        .frame(width: BrandMetrics.tileMedium, height: BrandMetrics.tileMedium)
-                                        .background(.quaternary, in: .rect(cornerRadius: BrandRadius.tile(BrandMetrics.tileMedium), style: .continuous))
-                                    VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                                        Text(command.title)
-                                            .font(.callout.weight(.semibold))
-                                        Text(command.detail)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                            .lineLimit(1)
-                                    }
-                                    Spacer()
-                                    Text(command.group)
-                                        .font(.caption2.weight(.medium))
-                                        .foregroundStyle(.tertiary)
-                                    if isDefault {
-                                        // Return runs the first match, so show
-                                        // which row that is.
-                                        Text("↩")
-                                            .font(.caption.monospaced().weight(.semibold))
-                                            .foregroundStyle(.tertiary)
-                                            .padding(.horizontal, BrandMetrics.capsuleHorizontal)
-                                            .padding(.vertical, BrandMetrics.capsuleVertical)
-                                            .background(.quaternary, in: .rect(cornerRadius: BrandRadius.xxs, style: .continuous))
-                                            .accessibilityLabel("Return")
-                                    }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2, pinnedViews: []) {
+                        if results.isEmpty {
+                            AuraEmptyState(
+                                symbol: "magnifyingglass",
+                                title: "No results",
+                                message: "Nothing matches “\(query)”. Try a page name, a setting, or an action like “private”."
+                            )
+                            .frame(minHeight: 280)
+                        } else {
+                            ForEach(groups(results), id: \.name) { group in
+                                Text(group.name)
+                                    .auraEyebrow()
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.horizontal, BrandSpacing.sm)
+                                    .padding(.top, BrandSpacing.sm)
+                                    .padding(.bottom, 2)
+                                ForEach(group.commands) { command in
+                                    row(command, selected: command.id == selection?.id)
+                                        .id(command.id)
                                 }
-                                .padding(.horizontal, BrandSpacing.sm)
-                                .padding(.vertical, BrandSpacing.sm)
-                                .background(
-                                    isDefault ? theme.readablePrimary(for: colorScheme).opacity(0.10) : Color.clear,
-                                    in: .rect(cornerRadius: BrandRadius.sm, style: .continuous)
-                                )
-                                .contentShape(.rect)
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityHint(isDefault ? "\(command.detail). Press Return to run." : command.detail)
                         }
                     }
+                    .padding(BrandSpacing.sm)
                 }
-                .padding(BrandSpacing.sm)
+                .onChange(of: scrollTarget) { _, id in
+                    guard let id else { return }
+                    withAnimation(.easeOut(duration: 0.12)) { proxy.scrollTo(id) }
+                }
             }
+
+            Rectangle().fill(BrandColors.hairline).frame(height: 1)
+            HStack(spacing: BrandSpacing.md) {
+                hint(keys: "↑↓", label: "Move")
+                hint(keys: "↩", label: "Open")
+                Spacer()
+                hint(keys: "⌘K", label: "Quick Open anywhere")
+            }
+            .padding(.horizontal, BrandSpacing.lg)
+            .padding(.vertical, BrandSpacing.sm)
         }
-        .frame(width: 560, height: 500)
+        .frame(width: 580, height: 480)
         .onAppear { searchFocused = true }
         .onExitCommand { dismiss() }
+    }
+
+    private func row(_ command: PaletteCommand, selected: Bool) -> some View {
+        Button {
+            run(command)
+        } label: {
+            HStack(spacing: BrandMetrics.cardContentSpacing) {
+                SymbolTile(
+                    symbol: command.symbol,
+                    tint: selected ? theme.primaryColor : BrandColors.neutral,
+                    size: BrandMetrics.tileMedium,
+                    filled: selected
+                )
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(command.title)
+                        .font(.callout.weight(.semibold))
+                    Text(command.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                if selected {
+                    KeyCap(text: "↩")
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.horizontal, BrandSpacing.sm)
+            .padding(.vertical, 7)
+            .background(
+                selected ? theme.primaryColor.opacity(colorScheme == .dark ? 0.16 : 0.09) : Color.clear,
+                in: .rect(cornerRadius: BrandRadius.sm, style: .continuous)
+            )
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .onHover { if $0 { selectedID = command.id } }
+        .accessibilityHint(selected ? "\(command.detail). Press Return to run." : command.detail)
+    }
+
+    private func hint(keys: String, label: String) -> some View {
+        HStack(spacing: 5) {
+            KeyCap(text: keys)
+            Text(label).font(.caption).foregroundStyle(.secondary)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func run(_ command: PaletteCommand?) {
+        guard let command else { return }
+        command.action()
+        dismiss()
+    }
+
+    private func move(_ offset: Int, in results: [PaletteCommand], from current: PaletteCommand?) {
+        guard !results.isEmpty else { return }
+        let index = current.flatMap { current in results.firstIndex { $0.id == current.id } } ?? 0
+        let next = min(max(index + offset, 0), results.count - 1)
+        selectedID = results[next].id
+        scrollTarget = results[next].id
+    }
+
+    private struct ResultGroup {
+        let name: String
+        let commands: [PaletteCommand]
+    }
+
+    private func groups(_ commands: [PaletteCommand]) -> [ResultGroup] {
+        var order: [String] = []
+        var grouped: [String: [PaletteCommand]] = [:]
+        for command in commands {
+            if grouped[command.group] == nil { order.append(command.group) }
+            grouped[command.group, default: []].append(command)
+        }
+        return order.map { ResultGroup(name: $0, commands: grouped[$0] ?? []) }
     }
 
     private var filteredCommands: [PaletteCommand] {
@@ -106,44 +174,44 @@ struct CommandPaletteView: View {
     }
 
     private var commands: [PaletteCommand] {
-        let navigation = DashboardSection.allCases.map { section in
-            PaletteCommand(
-                id: "section.\(section.rawValue)", title: section.title,
-                detail: "Open \(section.title)", group: "Navigate", symbol: section.symbol,
-                keywords: section.rawValue
-            ) { model.navigate(to: section) }
-        }
-        let settings = SettingsCategory.allCases.map { category in
-            PaletteCommand(
-                id: "settings.\(category.rawValue)", title: category.rawValue,
-                detail: category.detail, group: "Settings", symbol: category.symbol,
-                keywords: "preferences configuration"
-            ) { model.openSettings(category) }
-        }
         var actions = [
             PaletteCommand(
                 id: "privacy", title: model.isPrivate ? "End Private Mode" : "Go Private",
-                detail: model.isPrivate ? "Resume Discord and Last.fm sharing" : "Pause external sharing until resumed",
-                group: "Action", symbol: model.isPrivate ? "eye" : "eye.slash", keywords: "discord lastfm privacy"
+                detail: model.isPrivate ? "Resume Discord and Last.fm sharing" : "Pause Discord and Last.fm until you resume",
+                group: "Actions", symbol: model.isPrivate ? "eye" : "eye.slash", keywords: "discord lastfm privacy"
             ) {
                 model.isPrivate ? model.endPrivateMode() : model.setPrivate(until: nil)
             },
             PaletteCommand(
                 id: "demo", title: model.demoModeEnabled ? "End Demo Playback" : "Start Demo Playback",
-                detail: "Preview the Now Playing experience safely", group: "Action",
-                symbol: "testtube.2", keywords: "sample test music"
+                detail: "Preview Now Playing with sample tracks, without publishing", group: "Actions",
+                symbol: "testtube.2", keywords: "sample test music tour"
             ) { model.setDemoModeEnabled(!model.demoModeEnabled) },
         ]
         if model.snapshot.track != nil {
             actions.append(
                 PaletteCommand(
                     id: "artwork", title: "Reload Album Artwork",
-                    detail: "Clear the current cover cache and fetch it again", group: "Action",
+                    detail: "Clear the current cover and fetch it again", group: "Actions",
                     symbol: "photo.badge.arrow.down", keywords: "cover image retry repair"
                 ) { model.retryCurrentArtwork() }
             )
         }
-        return navigation + settings + actions
+        let navigation = DashboardSection.allCases.filter { $0 != .settings }.map { section in
+            PaletteCommand(
+                id: "section.\(section.rawValue)", title: section.title,
+                detail: "Go to \(section.title)", group: "Pages", symbol: section.symbol,
+                keywords: section.rawValue
+            ) { model.navigate(to: section) }
+        }
+        let settings = SettingsCategory.allCases.map { category in
+            PaletteCommand(
+                id: "settings.\(category.rawValue)", title: "\(category.rawValue) Settings",
+                detail: category.detail, group: "Settings", symbol: category.symbol,
+                keywords: "preferences configuration"
+            ) { model.openSettings(category) }
+        }
+        return navigation + actions + settings
     }
 }
 

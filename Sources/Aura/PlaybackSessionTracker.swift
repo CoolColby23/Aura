@@ -52,7 +52,25 @@ actor PlaybackSessionTracker {
         }
 
         missingTrackSince = nil
-        if active?.track.identity != track.identity {
+        // Repeat-one keeps the same metadata identity. Treat the wrap from the
+        // end to the beginning as a new play so the finished listen is submitted
+        // and Last.fm receives a fresh now-playing update.
+        let repeatedTrack: Bool
+        if let session = active, let lastObservedAt,
+            session.track.identity == track.identity,
+            lastState == .playing, snapshot.state == .playing,
+            track.duration > 30
+        {
+            let gap = snapshot.observedAt.timeIntervalSince(lastObservedAt)
+            repeatedTrack =
+                gap >= 0 && gap <= 15
+                && session.lastPosition >= track.duration - 10
+                && snapshot.position <= 10
+                && session.lastPosition - snapshot.position > track.duration / 2
+        } else {
+            repeatedTrack = false
+        }
+        if active?.track.identity != track.identity || repeatedTrack {
             if let finalized = finalize(as: finalOutcome(for: active, replacementState: snapshot.state)) {
                 events.append(.finalized(finalized))
             }
@@ -67,6 +85,10 @@ actor PlaybackSessionTracker {
             if snapshot.state == .playing { session.eligibility = eligibility(for: session) }
             active = session
             events.append(.started(session))
+            // Opening Aura partway through a song can make the first snapshot
+            // eligible already. The model still needs the eligibility event to
+            // approve that play for submission when it finishes.
+            if session.eligibility == .eligible { events.append(.eligible(session)) }
         } else if var session = active {
             if lastState == .playing, snapshot.state == .playing, let lastObservedAt {
                 let wallDelta = max(0, snapshot.observedAt.timeIntervalSince(lastObservedAt))

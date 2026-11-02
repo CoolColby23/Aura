@@ -149,14 +149,39 @@ enum BrandMetrics {
     /// The outer padding of a scrolling detail screen, so switching sidebar
     /// sections does not shift the content inset.
     static let screenPadding = BrandSpacing.xl
+
+    /// Between the blocks of a page: the header, then each titled section.
+    static let sectionSpacing = BrandSpacing.xl
+
+    /// The leading inset of a divider inside a row group, so it starts under the
+    /// row's text rather than under its artwork or symbol tile.
+    static let rowDividerInset: CGFloat = 60
+
+    /// The now-playing artwork on the dashboard stage, wide and narrow.
+    static let stageArtwork: CGFloat = 264
+    static let stageArtworkCompact: CGFloat = 200
+
+    /// The artwork thumbnail at the front of a history or queue row.
+    static let rowArtwork: CGFloat = 40
 }
 
 enum BrandTypography {
     static let heroTitle = Font.system(size: 40, weight: .bold, design: .rounded)
+    /// The large title that opens every dashboard page. The window toolbar no
+    /// longer repeats it, so this is the one place a page names itself.
+    static let pageTitle = Font.system(size: 30, weight: .bold, design: .rounded)
     static let sectionTitle = Font.system(size: 24, weight: .semibold, design: .rounded)
     static let cardTitle = Font.system(size: 18, weight: .semibold, design: .rounded)
+    /// A heading for a group of rows or a surface within a page.
+    static let groupTitle = Font.system(size: 15, weight: .semibold, design: .rounded)
+    /// Headline numbers — listen counts, minutes, the recap. Always paired with
+    /// `.monospacedDigit()` so a changing value does not jitter.
+    static let statValue = Font.system(size: 30, weight: .semibold, design: .rounded)
     static let body = Font.system(size: 15, weight: .regular, design: .rounded)
     static let caption = Font.system(size: 12, weight: .medium, design: .rounded)
+    /// All-caps label. Applied through `auraEyebrow()`, which adds the 1.05
+    /// tracking the brand guide specifies for capitals.
+    static let eyebrow = Font.system(size: 11, weight: .semibold, design: .rounded)
     static let mono = Font.system(size: 12, weight: .regular, design: .monospaced)
 }
 
@@ -218,18 +243,7 @@ struct BrandMark: View {
         .accessibilityLabel("Aura")
     }
 
-    /// The brand sweep for the default theme; a two-stop sweep in the theme's own
-    /// colors otherwise, so custom themes still tint the mark.
-    private var shading: AnyShapeStyle {
-        if theme.id == AppTheme.defaultID { return AnyShapeStyle(BrandColors.sweep(angle: sweep)) }
-        return AnyShapeStyle(
-            AngularGradient(
-                gradient: Gradient(colors: [theme.secondaryColor, theme.primaryColor, theme.secondaryColor]),
-                center: .center,
-                angle: sweep
-            )
-        )
-    }
+    private var shading: AnyShapeStyle { theme.haloShading(angle: sweep) }
 
     private func ring(size: CGFloat, width: CGFloat, shading: AnyShapeStyle) -> some View {
         Circle()
@@ -244,15 +258,33 @@ struct BrandMark: View {
     }
 }
 
-/// The brand motion signature: the halo's gradient sweeps slowly around the ring
-/// while something is playing. Freezes in place — never hides — under Reduce Motion.
-struct SweepingBrandMark: View {
-    var isPlaying = false
-    var monochrome = false
+extension AppTheme {
+    /// The halo's shading: the brand sweep for the default theme, and a two-stop
+    /// sweep in the theme's own colors otherwise, so custom themes still tint the
+    /// mark and the live artwork glow.
+    func haloShading(angle: Angle = .zero) -> AnyShapeStyle {
+        if id == AppTheme.defaultID { return AnyShapeStyle(BrandColors.sweep(angle: angle)) }
+        return AnyShapeStyle(
+            AngularGradient(
+                gradient: Gradient(colors: [secondaryColor, primaryColor, secondaryColor]),
+                center: .center,
+                angle: angle
+            )
+        )
+    }
+}
+
+/// The brand motion signature: one revolution of the sweep every 12 seconds,
+/// while and only while something is playing. Freezes in place — never hides —
+/// under Reduce Motion. Shared by the halo mark and the live artwork glow so the
+/// two always turn together.
+struct BrandSweep<Content: View>: View {
+    var isPlaying: Bool
+    @ViewBuilder var content: (Angle) -> Content
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// One revolution every 12 seconds.
-    private static let period: TimeInterval = 12
+    static var period: TimeInterval { 12 }
 
     var body: some View {
         TimelineView(
@@ -261,7 +293,7 @@ struct SweepingBrandMark: View {
                 paused: reduceMotion || !isPlaying
             )
         ) { context in
-            BrandMark(monochrome: monochrome, sweep: sweepAngle(at: context.date))
+            content(sweepAngle(at: context.date))
         }
     }
 
@@ -269,6 +301,17 @@ struct SweepingBrandMark: View {
         guard isPlaying, !reduceMotion else { return .zero }
         let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.period)
         return .degrees(phase / Self.period * 360)
+    }
+}
+
+struct SweepingBrandMark: View {
+    var isPlaying = false
+    var monochrome = false
+
+    var body: some View {
+        BrandSweep(isPlaying: isPlaying) { angle in
+            BrandMark(monochrome: monochrome, sweep: angle)
+        }
     }
 }
 

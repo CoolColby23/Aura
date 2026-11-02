@@ -507,6 +507,9 @@ final class CompanionAppModel {
                 throw error
             }
             await reload()
+        } catch CloudCoordinationError.alreadySubmitted(let date) {
+            submissionNotBefore.removeValue(forKey: listen.id)
+            do { try await store.setState(.submitted, for: listen.id, submittedAt: date); await reload() } catch { show(error) }
         } catch { try? await store.log("submission", "Deferred \(listen.id): \(String(describing: type(of: error)))."); show(error) }
     }
 
