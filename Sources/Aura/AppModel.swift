@@ -1299,7 +1299,7 @@ final class Preferences {
             ?? ((defaults.object(forKey: "showTimer") as? Bool ?? true) ? .progress : .hidden)
         discordLargeImageText = defaults.string(forKey: "discordLargeImageText") ?? "{album}"
         discordSmallImageText = defaults.string(forKey: "discordSmallImageText") ?? "Playing on {platform}"
-        discordSharePaused = defaults.object(forKey: "discordSharePaused") as? Bool ?? true
+        discordSharePaused = defaults.object(forKey: "discordSharePaused") as? Bool ?? false
         discordPausedText = defaults.string(forKey: "discordPausedText") ?? "Paused • {artist}"
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
         historyRetentionDays = defaults.object(forKey: "historyRetentionDays") as? Int ?? 365

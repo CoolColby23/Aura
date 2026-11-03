@@ -27,7 +27,7 @@ struct DiscordPresenceProfile: Codable, Equatable, Identifiable {
         lineTwo: DiscordLineFormat.artistAndAlbum.rawValue,
         customLineOne: "Listening to {artist}", customLineTwo: "{title} • {album}",
         showAlbum: true, timerStyle: DiscordTimerStyle.progress.rawValue,
-        sharePaused: true, pausedText: "Paused • {artist}",
+        sharePaused: false, pausedText: "Paused • {artist}",
         largeImage: DiscordLargeImage.artwork.rawValue, largeImageText: "{album}",
         smallImage: DiscordSmallImage.playbackPlatform.rawValue,
         smallImageText: "Playing on {platform}", showLink: true, buttonLabel: ""

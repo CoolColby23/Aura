@@ -874,7 +874,8 @@ struct LastFMTransportTests {
         #expect(body.contains("api_sig="))
     }
 
-    @Test func rateLimitPreservesServerRetryDelay() async throws {
+    @Test(arguments: ["180", "86400", "inf", "nan", "-1", "invalid"])
+    func rateLimitPreservesBoundedServerRetryDelay(header: String) async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = CredentialStore(baseDirectory: directory)
@@ -884,7 +885,7 @@ struct LastFMTransportTests {
         TestURLProtocol.handler = { request in
             let response = HTTPURLResponse(
                 url: request.url!, statusCode: 429, httpVersion: nil,
-                headerFields: ["Retry-After": "180"]
+                headerFields: ["Retry-After": header]
             )!
             return (response, Data())
         }
@@ -895,7 +896,7 @@ struct LastFMTransportTests {
             try await client.scrobble(title: "Track", artist: "Artist", album: nil, duration: 180, startedAt: .now)
             Issue.record("Expected the rate limit to defer the scrobble")
         } catch LastFMError.retryLater(_, let delay) {
-            #expect(delay == 180)
+            #expect(delay == (["180": 180.0, "86400": 300, "-1": 5][header] ?? 30))
         }
     }
 
@@ -924,6 +925,21 @@ struct LastFMTransportTests {
         let failed = await provider.snapshot()
         #expect(failed.playback == nil)
         if case .unavailable = failed.health {} else { Issue.record("Expected provider failure") }
+        for _ in 0..<3 {
+            clock.advance(by: 0.1)
+            let cachedFailure = await provider.snapshot()
+            #expect(cachedFailure.playback == nil)
+            #expect(cachedFailure.health == failed.health)
+        }
+        clock.advance(by: 6)
+        TestURLProtocol.handler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            let body = #"{"player":{"trackState":1,"videoProgress":20},"video":{"author":"Artist","title":"Recovered","durationSeconds":180,"id":"def"}}"#
+            return (response, Data(body.utf8))
+        }
+        let recovered = await provider.snapshot()
+        #expect(recovered.health == .available)
+        #expect(recovered.playback?.track?.title == "Recovered")
     }
 
     @Test func radioScrobbleOmitsUnknownDurationAndMarksTrackAsNotChosen() {

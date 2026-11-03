@@ -165,7 +165,9 @@ actor LastFMClient: Scrobbling, ScrobbleSubmitting {
         do {
             let (data, response) = try await session.data(for: request)
             if let http = response as? HTTPURLResponse, http.statusCode == 429 {
-                let retryAfter = max(5, TimeInterval(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 30)
+                let parsedDelay = TimeInterval(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 30
+                // A malformed or excessive server delay must not stall every Last.fm operation.
+                let retryAfter = parsedDelay.isFinite ? min(300, max(5, parsedDelay)) : 30
                 earliestRequestAt = clock.now.addingTimeInterval(retryAfter)
                 throw LastFMError.retryLater("Last.fm is busy. Aura will retry automatically.", after: retryAfter)
             }

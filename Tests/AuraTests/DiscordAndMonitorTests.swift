@@ -6,6 +6,48 @@ import Testing
 
 @Suite("Discord customization")
 struct DiscordCustomizationTests {
+    @Test @MainActor func pausedSharingDefaultsToPrivateWithoutPersistingAChoice() throws {
+        let name = "AuraTests.paused-default.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        #expect(defaults.object(forKey: "discordSharePaused") == nil)
+        #expect(!Preferences(defaults: defaults).discordSharePaused)
+        #expect(defaults.object(forKey: "discordSharePaused") == nil)
+    }
+
+    @Test @MainActor func pausedSharingPreservesSavedChoices() throws {
+        let name = "AuraTests.paused-saved.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        for value in [true, false] {
+            defaults.set(value, forKey: "discordSharePaused")
+            let preferences = Preferences(defaults: defaults)
+            #expect(preferences.discordSharePaused == value)
+            #expect(defaults.object(forKey: "discordSharePaused") as? Bool == value)
+            preferences.discordSharePaused = !value
+            #expect(Preferences(defaults: defaults).discordSharePaused == !value)
+        }
+    }
+
+    @Test @MainActor func pausedSharingProfilesPreserveExplicitOptIn() throws {
+        let name = "AuraTests.paused-profiles.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let preferences = Preferences(defaults: defaults)
+        #expect(DiscordPresenceProfile.balanced.sharePaused == preferences.discordSharePaused)
+        #expect(!DiscordPresenceProfile.minimal.sharePaused)
+        #expect(DiscordPresenceProfile.detailed.sharePaused)
+        for profile in DiscordPresenceProfile.builtIns {
+            profile.apply(to: preferences)
+            #expect(Preferences(defaults: defaults).discordSharePaused == profile.sharePaused)
+        }
+        let custom = DiscordPresenceProfile.capture(name: "Paused opt-in", preferences: preferences)
+        let restored = try JSONDecoder().decode(DiscordPresenceProfile.self, from: JSONEncoder().encode(custom))
+        preferences.discordSharePaused = false
+        restored.apply(to: preferences)
+        #expect(Preferences(defaults: defaults).discordSharePaused)
+    }
+
     @Test @MainActor func factoryBuildsCountdownImagesHoverTextAndActivityStyle() throws {
         let defaults = try #require(UserDefaults(suiteName: "AuraTests.discord-customization.\(UUID().uuidString)"))
         let preferences = Preferences(defaults: defaults)
@@ -84,7 +126,7 @@ struct DiscordCustomizationTests {
         let defaults = try #require(UserDefaults(suiteName: "AuraTests.discord-progress.\(UUID())"))
         let preferences = Preferences(defaults: defaults)
         #expect(preferences.discordTimerStyle == .progress)
-        #expect(preferences.discordSharePaused)
+        #expect(!preferences.discordSharePaused)
         let now = Date(timeIntervalSince1970: 2_000)
         let track = TrackMetadata(
             identity: .init(persistentID: "progress"), title: "Track", artist: "Artist",
