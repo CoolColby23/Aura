@@ -5,6 +5,58 @@ import XCTest
 @testable import AuraiOS
 
 final class CompanionReliabilityTests: XCTestCase {
+    func testRepeatedPlaysPersistWithDistinctIDsAndRetainLegacyID() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("ledger.json")
+        let store = CompanionStore(fileURL: url)
+        let start = Date(timeIntervalSince1970: 2041)
+        try await store.establishBaselineIfNeeded(.init(establishedAt: start.addingTimeInterval(-1)))
+        func evidence(_ offset: TimeInterval) -> PlaybackEvidence {
+            PlaybackEvidence(
+                deviceID: UUID(), sourceTrackID: "repeat",
+                metadata: .init(title: "Track", artist: "Artist", duration: 180, startedAt: start.addingTimeInterval(offset)), observedPlayTime: 120,
+                origin: .observed, confidence: .strong, capturedAt: start.addingTimeInterval(offset + 120))
+        }
+        let first = try await store.ingest(evidence(0))
+        try await store.setState(.submitted, for: first.id, submittedAt: start)
+        let second = try await store.ingest(evidence(99))
+        XCTAssertNotEqual(first.id, second.id)
+        let reloaded = CompanionStore(fileURL: url)
+        let state = await reloaded.current()
+        XCTAssertEqual(state.listens.count, 2)
+        XCTAssertEqual(state.listens.first?.state, .submitted)
+        XCTAssertEqual(state.listens.last?.state, .queued)
+        let again = try await reloaded.ingest(evidence(99))
+        XCTAssertEqual(again.id, second.id)
+        let final = await reloaded.current()
+        XCTAssertEqual(final.listens.count, 2)
+    }
+
+    func testLegacyDuplicateIDsCannotMarkTheWrongPlaySubmitted() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("ledger.json")
+        let start = Date(timeIntervalSince1970: 2041)
+        func legacy(_ offset: TimeInterval) -> CanonicalListen {
+            let item = PlaybackEvidence(
+                deviceID: UUID(), sourceTrackID: "repeat", metadata: .init(title: "Track", artist: "Artist", startedAt: start.addingTimeInterval(offset)),
+                observedPlayTime: 120, origin: .observed, confidence: .strong)
+            return CanonicalListen(id: CanonicalListenIdentity.legacy(for: item), evidence: [item], metadata: item.originalMetadata, state: .queued)
+        }
+        let one = legacy(0), two = legacy(99)
+        XCTAssertEqual(one.id, two.id)
+        var fixture = CompanionSnapshot.empty
+        fixture.listens = [one, two]
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(fixture).write(to: url)
+        let original = try Data(contentsOf: url)
+        let store = CompanionStore(fileURL: url)
+        do { try await store.setState(.submitted, for: one.id); XCTFail("Ambiguous legacy key accepted") } catch CompanionStoreError.ambiguousListenID {}
+        XCTAssertEqual(try Data(contentsOf: url), original)
+    }
+
     override func setUp() {
         super.setUp()
         CompanionURLProtocol.reset()

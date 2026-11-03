@@ -97,3 +97,40 @@ The post-reboot attempt reproduced the same XPC listener permission failure and
 was stopped. Local iOS test execution remains blocked; no app assertion failure
 was observed. The previous head's CI pass is historical validation, not a pass
 for the follow-up head.
+
+## Cloud listen-ID collision implementation
+
+See `CLOUD-IDENTITY-V2.md` for the end-to-end trace, compatibility activation plan
+and limitations. This supersedes the earlier description of the collision as an
+unimplemented code fix. New local play IDs no longer share a two-minute bucket.
+The shared coordinator matches play evidence instead of accepting an ID as a
+receipt, uses adjacent metadata/time lookup indices and atomic gate/index/lease
+claims, and preserves old IDs/receipts without rewriting them. New cloud versions
+fence old clients, while unversioned existing zones remain safely queued pending
+an explicitly reviewed upgrade. No production schema or data migration was run.
+
+The coordinator was moved into AuraCore so real decision logic can execute in
+isolated macOS tests without cloud credentials. Added collision, legacy receipt,
+adjacent-bucket/cross-device, short repeat, normalized-account, private-mode,
+concurrent claim, stale completion, expired lease and failed-receipt tests. Local
+legacy duplicate keys are blocked before submission state updates. Unknown HTTP
+outcomes remain durably in-flight; accepted plays are not requeued merely because
+receipt persistence fails. iOS capture anchors play start across pauses and
+resets evidence on repeat-one wraps. Short repeat matching is duration-bounded.
+
+A new disposable iOS 27 simulator reproduced the same host test execution error
+seen with iOS 26.5: testmanagerd XPC listener activation reports `Operation not
+permitted`, followed by the instruments lockdown/DTServiceHubClient failure. The
+stalled attempt was stopped. The final companion `build-for-testing` succeeded,
+including temporary-ledger regression tests, but local simulator tests have NOT
+passed. A new-head CI run is required to establish simulator execution results.
+Live two-device CloudKit and Last.fm acceptance remain unverified, independent
+of the deterministic in-memory tests. The migration/activation plan must be
+reviewed separately before existing cloud histories are enabled for version 2.
+
+Final local Swift validation: 146 app tests plus 24 core tests (including 13 cloud
+coordination regressions) passed. Strict changed-file formatting, credential scan
+and patch hygiene passed. The disposable simulator created for this attempt was
+shut down and deleted; existing simulators and live data were preserved.
+The AGENTS-required final preview sync also passed bundle/signature verification
+and installed `/Applications/Aura.app` (2.0.1, build 2026.11.03).

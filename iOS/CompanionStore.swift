@@ -21,9 +21,14 @@ struct DiagnosticEntry: Identifiable, Codable, Sendable {
 }
 
 enum CompanionStoreError: LocalizedError {
-    case invalidScrobbleMetadata
+    case invalidScrobbleMetadata, ambiguousListenID
 
-    var errorDescription: String? { "A title and artist are required before retrying this scrobble." }
+    var errorDescription: String? {
+        switch self {
+        case .invalidScrobbleMetadata: "A title and artist are required before retrying this scrobble."
+        case .ambiguousListenID: "Legacy listens share an ID. Reconcile them before retrying."
+        }
+    }
 }
 
 actor CompanionStore {
@@ -115,6 +120,7 @@ actor CompanionStore {
 
     func setCursor(_ cursor: ReconciliationCursor) throws { snapshot.cursor = cursor; try persist() }
     func setState(_ state: ListenState, for id: String, submittedAt: Date? = nil, failureReason: String? = nil) throws {
+        guard snapshot.listens.filter({ $0.id == id }).count <= 1 else { throw CompanionStoreError.ambiguousListenID }
         guard let index = snapshot.listens.firstIndex(where: { $0.id == id }) else { return }
         snapshot.listens[index].state = state; snapshot.listens[index].submittedAt = submittedAt
         snapshot.listens[index].failureReason = failureReason

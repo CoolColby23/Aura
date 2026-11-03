@@ -35,7 +35,7 @@ public enum ScrobbleEligibilityPolicy {
 
 extension String {
     public var presenceNormalized: String {
-        folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+        folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
             .components(separatedBy: .alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: " ")
     }
 

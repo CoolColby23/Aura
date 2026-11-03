@@ -16,37 +16,53 @@ public struct DefaultEvidenceMerger: EvidenceMerger {
 
     public func merge(_ evidence: PlaybackEvidence, into candidates: [CanonicalListen]) -> MergeDecision {
         let identity = CanonicalListenIdentity.make(for: evidence)
-        if let exact = candidates.first(where: { candidate in
-            candidate.evidence.contains { prior in
-                guard let lhs = prior.sourceTrackID, let rhs = evidence.sourceTrackID else { return false }
-                return lhs == rhs && close(prior.originalMetadata.startedAt, evidence.originalMetadata.startedAt)
-            }
-        }) {
-            return .merge(exact.id)
-        }
-
         let metadataMatches = candidates.filter {
             $0.canonicalMetadata.title.presenceNormalized == evidence.originalMetadata.title.presenceNormalized
                 && $0.canonicalMetadata.artist.presenceNormalized == evidence.originalMetadata.artist.presenceNormalized
-                && close($0.canonicalMetadata.startedAt, evidence.originalMetadata.startedAt)
+                && SamePlayWindow.contains($0.canonicalMetadata, evidence.originalMetadata)
         }
         if metadataMatches.count == 1 { return .merge(metadataMatches[0].id) }
         if metadataMatches.count > 1 { return .review(nil, .ambiguousDuplicate) }
         return .newListen(identity)
     }
 
-    private func close(_ lhs: Date?, _ rhs: Date?) -> Bool {
-        guard let lhs, let rhs else { return false }
-        return abs(lhs.timeIntervalSince(rhs)) <= 90
+}
+
+/// Bound the matching tolerance by half a short track so a normal repeat
+/// cannot be swallowed by the historical 90-second cross-device window.
+public enum SamePlayWindow {
+    public static func contains(_ lhs: ScrobbleMetadata, _ rhs: ScrobbleMetadata) -> Bool {
+        guard let a = lhs.startedAt, let b = rhs.startedAt else { return false }
+        let durations = [lhs.duration, rhs.duration].compactMap { $0 }.filter { $0.isFinite && $0 > 30 }
+        let tolerance = min(90, durations.min().map { $0 / 2 } ?? 90)
+        return abs(a.timeIntervalSince(b)) <= tolerance
     }
 }
 
 public enum CanonicalListenIdentity {
     public static func make(for evidence: PlaybackEvidence) -> String {
         let metadata = evidence.originalMetadata
-        let bucket = Int((metadata.startedAt ?? evidence.capturedAt).timeIntervalSince1970 / 120)
+        let timestamp = (metadata.startedAt ?? evidence.capturedAt).timeIntervalSince1970
+        // IDs are local ledger keys, not proof that two devices observed one play.
+        // Keep full timestamp precision: distinct repeated plays must never alias.
         let source = evidence.sourceTrackID ?? "\(metadata.artist.presenceNormalized)|\(metadata.title.presenceNormalized)"
-        let digest = SHA256.hash(data: Data("\(source)|\(bucket)".utf8))
+        return "v2-" + digest("\(source)|\(metadata.artist.presenceNormalized)|\(metadata.title.presenceNormalized)|\(timestamp)")
+    }
+
+    public static func legacy(for evidence: PlaybackEvidence, bucketOffset: Int = 0) -> String {
+        let metadata = evidence.originalMetadata
+        let bucket = Int((metadata.startedAt ?? evidence.capturedAt).timeIntervalSince1970 / 120) + bucketOffset
+        let source = evidence.sourceTrackID ?? "\(metadata.artist.presenceNormalized)|\(metadata.title.presenceNormalized)"
+        return digest("\(source)|\(bucket)")
+    }
+
+    static func cloudIndex(metadata: ScrobbleMetadata, offset: Int = 0) -> String {
+        let bucket = Int(metadata.startedAt!.timeIntervalSince1970 / 120) + offset
+        return "index-v2-" + digest("\(metadata.artist.presenceNormalized)|\(metadata.title.presenceNormalized)|\(bucket)")
+    }
+
+    private static func digest(_ value: String) -> String {
+        let digest = SHA256.hash(data: Data(value.utf8))
         return digest.prefix(16).map { String(format: "%02x", $0) }.joined()
     }
 }
