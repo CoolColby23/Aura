@@ -130,7 +130,9 @@ private struct AuraWidgetView: View {
         Group {
             if entry.snapshot?.isPrivate == true {
                 privateState
-            } else if let snapshot = entry.snapshot {
+            } else if let snapshot = entry.snapshot, snapshot.state != "stopped" {
+                // A stopped snapshot carries no track, so it renders as the empty
+                // state rather than as a paused "Nothing Playing" layout.
                 if family == .systemMedium {
                     mediumPlaying(snapshot)
                 } else {

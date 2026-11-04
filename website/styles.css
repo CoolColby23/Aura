@@ -14,7 +14,9 @@
   --surface-raised: rgba(30, 30, 42, 0.8);
   /* The Aura sweep. Halo and live state only — never buttons, text, or panels. */
   --sweep: linear-gradient(90deg, var(--peach), var(--blush) 34%, var(--lilac) 70%, var(--indigo));
-  --sweep-conic: conic-gradient(from var(--sweep-angle), var(--peach), var(--blush) 22%, var(--lilac) 48%, var(--indigo) 74%, var(--peach));
+  /* Conic stops only: the angle must resolve on each animated element, so the
+     conic-gradient() itself is written where --sweep-angle animates. */
+  --sweep-conic-stops: var(--peach), var(--blush) 22%, var(--lilac) 48%, var(--indigo) 74%, var(--peach);
   /* Elevation is a tinted glow, never a hard black drop shadow. */
   --glow-low: 0 4px 12px rgba(91, 91, 245, 0.1);
   --glow-high: 0 24px 80px rgba(91, 91, 245, 0.18);
@@ -241,7 +243,7 @@ code {
   inset: 0;
   margin: auto;
   border-radius: 50%;
-  background: var(--sweep-conic);
+  background: conic-gradient(from var(--sweep-angle), var(--sweep-conic-stops));
   animation: sweep 12s linear infinite;
 }
 
@@ -277,6 +279,9 @@ code {
 
 .hero {
   position: relative;
+  /* Keeps the negative-z glows (.hero::before, .shot::before) inside the hero
+     instead of behind the body background. */
+  isolation: isolate;
   max-width: var(--measure);
   margin: 0 auto;
   padding: 72px 28px 112px;
@@ -363,7 +368,7 @@ code {
   inset: 6% 4% -2%;
   z-index: -1;
   border-radius: var(--radius-xl);
-  background: var(--sweep-conic);
+  background: conic-gradient(from var(--sweep-angle), var(--sweep-conic-stops));
   filter: blur(70px);
   opacity: 0.32;
   animation: sweep 12s linear infinite;

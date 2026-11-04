@@ -183,7 +183,7 @@ struct DiagnosticsView: View {
     }
 
     private var discordActionTitle: String? {
-        guard model.preferences.discordEnabled, !model.discordStatus.isConnected, model.discordStatus != .connecting else { return nil }
+        guard model.preferences.discordEnabled, model.discordStatus.isActionable else { return nil }
         return "Try Again"
     }
 

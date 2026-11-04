@@ -12,7 +12,7 @@
 - Pending Plays, Status & Support, onboarding, the correction sheet, and the theme picker are rebuilt on shared components. Onboarding opens with "Let's give your music an aura." and folds startup and notifications into one step.
 - The sidebar foot is a single Private Mode control; hidden sidebar pages are managed from Settings → General.
 - The menu-bar panel follows Control Center: modules on the system material, round toggles for Discord, Last.fm, and Private Mode, and larger transport controls.
-- The desktop widget gains a medium layout with an eyebrow and times, a "Live" badge, and on-brand private and empty states.
+- The source-ready desktop widget gains a medium layout with an eyebrow and times, a "Live" badge, and on-brand private and empty states. It is not embedded in the shipping app; app-group signing prerequisites remain in `Documentation/WIDGET.md`.
 - The website is redesigned around an animated CSS halo, a player → Discord → Last.fm story, a feature bento, and new screenshots of the current app.
 - Content surfaces no longer use Liquid Glass; glass is reserved for controls. Only the one surface meant to draw the eye carries the tinted glow.
 

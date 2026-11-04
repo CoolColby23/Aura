@@ -71,7 +71,7 @@ struct ListeningHistoryView: View {
                         .disabled(!hasLastFMConnection || model.lastFMRemoteTracksLoading)
                     }
                     Button("Export Visible History…", systemImage: "square.and.arrow.up") { exportVisibleHistory() }
-                        .disabled(filteredRecords.isEmpty)
+                        .disabled(exportableRecords.isEmpty)
                     Divider()
                     Button("Clear Listening History…", systemImage: "trash", role: .destructive) { showingClearConfirmation = true }
                         .disabled(records.isEmpty)
@@ -516,7 +516,7 @@ struct ListeningHistoryView: View {
 
     // MARK: Data
 
-    private var summary: ListeningSummary { ListeningSummary(records: filteredRecords) }
+    private var summary: ListeningSummary { ListeningSummary(records: periodAndSearchRecords) }
     private var extendedInsights: ExtendedListeningInsights {
         ExtendedListeningInsights(records: records, period: period)
     }
@@ -535,23 +535,34 @@ struct ListeningHistoryView: View {
         return StatBand.Delta(value: delta)
     }
 
-    private var filteredRecords: [ActivityRecord] {
+    /// Records matching the shared period and search controls. Overview and Insights read from this.
+    private var periodAndSearchRecords: [ActivityRecord] {
         let cutoff = period.cutoff(from: .now)
         return records.filter { record in
             let matchesPeriod = cutoff.map { record.startedAt >= $0 } ?? true
-            let matchesOutcome: Bool =
-                switch outcome {
-                case .all: true
-                case .played: record.outcomeLabel == "Played"
-                case .listened: record.outcomeLabel == "Listened"
-                case .skipped: record.outcomeLabel == "Skipped"
-                }
             let matchesSearch =
                 searchText.isEmpty
                 || [record.title, record.artist, record.album ?? ""]
                     .contains { $0.localizedCaseInsensitiveContains(searchText) }
-            return matchesPeriod && matchesOutcome && matchesSearch
+            return matchesPeriod && matchesSearch
         }
+    }
+
+    /// Activity-tab records: the shared controls plus the Activity-only outcome filter.
+    private var filteredRecords: [ActivityRecord] {
+        periodAndSearchRecords.filter { record in
+            switch outcome {
+            case .all: true
+            case .played: record.outcomeLabel == "Played"
+            case .listened: record.outcomeLabel == "Listened"
+            case .skipped: record.outcomeLabel == "Skipped"
+            }
+        }
+    }
+
+    /// What "Export Visible History" writes: the outcome filter only applies where it is visible.
+    private var exportableRecords: [ActivityRecord] {
+        tab == .activity ? filteredRecords : periodAndSearchRecords
     }
 
     private var filteredRemoteTracks: [LastFMRemoteTrack] {
@@ -567,7 +578,7 @@ struct ListeningHistoryView: View {
     }
 
     private func exportVisibleHistory() {
-        exportDocument = HistoryCSVDocument(text: HistoryCSVExporter.csv(records: filteredRecords))
+        exportDocument = HistoryCSVDocument(text: HistoryCSVExporter.csv(records: exportableRecords))
         showingExporter = true
     }
 }

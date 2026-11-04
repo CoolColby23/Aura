@@ -8,6 +8,7 @@ struct OnboardingView: View {
     @State private var step = 0
     @State private var discordEnabled = false
     @State private var lastFMEnabled = false
+    @State private var lastFMToggleEdited = false
     @State private var launchAtLogin = false
     @State private var selectedProviders = Set(PlaybackProviderID.allCases)
     @State private var hasLoadedPreferences = false
@@ -67,6 +68,11 @@ struct OnboardingView: View {
         .auraPanelBackground()
         .interactiveDismissDisabled(!preferences.onboardingComplete)
         .onAppear(perform: loadPreferences)
+        .onChange(of: model.lastFMUsername) { oldName, newName in
+            // A successful authorization turns scrobbling on, matching the row's
+            // promise — unless the person already chose a value themselves.
+            if oldName.isEmpty, !newName.isEmpty, !lastFMToggleEdited { lastFMEnabled = true }
+        }
         .onExitCommand {
             if preferences.onboardingComplete {
                 model.onboardingPresented = false
@@ -187,7 +193,13 @@ struct OnboardingView: View {
                         symbol: "checkmark.seal",
                         title: "Scrobble finished listens",
                         detail: "Turns on once your account is connected. You can skip this for now.",
-                        isOn: $lastFMEnabled
+                        isOn: Binding(
+                            get: { lastFMEnabled },
+                            set: {
+                                lastFMEnabled = $0
+                                lastFMToggleEdited = true
+                            }
+                        )
                     )
                     .padding(.top, BrandSpacing.xs)
                 }

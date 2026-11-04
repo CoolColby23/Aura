@@ -134,3 +134,66 @@ and patch hygiene passed. The disposable simulator created for this attempt was
 shut down and deleted; existing simulators and live data were preserved.
 The AGENTS-required final preview sync also passed bundle/signature verification
 and installed `/Applications/Aura.app` (2.0.1, build 2026.11.03).
+
+## Maintenance follow-up — 2026-11-04
+
+Dependency versions and official release/advisory evidence are recorded in
+`DEPENDENCY-AUDIT-2026-11-03.md`. Sparkle 2.10.1 is resolved by both SwiftPM and
+Xcode; CodeQL init/analyze use 4.39.2 and upload-artifact uses 7.0.2, all actions
+pinned to full commits. This incorporates the relevant bot PR changes without
+merging or closing those PRs.
+
+Confirmed fixes:
+- macOS queue keys retain the full play-start instant and platform instead of a
+  minute bucket, so two 40-second repeat-one plays are both admitted. Existing
+  persisted keys remain unchanged; an exact legacy start/key match is still
+  recognized as duplicate. No persisted history or queued row is rewritten.
+- Sessions refresh late-arriving duration/metadata without discarding earned
+  listening time, so a previously unknown duration can become eligible.
+- Queue drains re-fetch rows after each request and skip removed/rescheduled
+  rows. Completion does not mutate a row removed during the network request.
+- Artwork invalidation fences in-flight downloads/catalog lookups, preventing
+  late results from repopulating a cache after a refresh; cancellation remains
+  checked before caching.
+- Cloud coordination blocks dangling or malformed index evidence and checks the
+  deterministic receipt ID directly as well as index links. Atomic lease/gate
+  compare-and-save, versioned account fencing, uncertain-outcome protection and
+  the reviewed activation procedure in `CLOUD-IDENTITY-V2.md` remain required.
+- iOS binds scrobbles to the lease account using a username/session snapshot
+  read in one Keychain actor turn. Session replacement clears identity first;
+  disconnect also removes legacy fallback credentials. Account changes before
+  submission release the unused lease and leave the listen queued.
+- iOS HTTP 429 and API 11/16/29 are definite temporary refusals, releasing leases
+  for retry instead of leaving a known refusal in uncertain submission state.
+  Retry-After is finite and bounded to 5–300 seconds.
+- Claude implemented the existing UI findings: Activity-only outcome filtering,
+  onboarding authorization/toggle synchronization preserving explicit choices,
+  actionable Discord recovery, stopped widget empty state, and website gradient
+  animation/stacking. Widget remains source-only; changelog now says so.
+
+Validation on the final implementation: Swift tests passed (151 Aura tests,
+25 AuraCore tests, plus one XCTest backoff test). Formatting, credential scan,
+widget source type-check and website metadata/reference checks passed. Release
+packaging and the required preview sync passed strict nested code signatures,
+entitlements, resources and Sparkle public-key checks using the isolated
+`/tmp/Aura-PR42-Maintenance-Preview/Aura.app` target. The installed
+`/Applications/Aura.app` was not replaced or terminated. DMG creation and
+`hdiutil verify Aura-pr42-maintenance.dmg` passed. Release appcast signature
+checks and audit thresholds were not weakened.
+
+The new isolated iOS 26.5 / iPhone 17 Pro simulator built the test products but
+failed before executing tests: “The test runner hung before establishing
+connection.” The xcresult reports zero passed tests and one runner failure,
+not a successful simulator suite. Result bundle:
+`~/Library/Developer/XcodeBuildMCP/workspaces/PresenceFM-8f1dedb04c80/result-bundles/test_sim_2026-11-04T00-54-26-433Z_pid93528_37cedccc.xcresult`.
+Three new iOS regression methods cover bounded rate limits, account-switch
+session isolation with a unique test Keychain service, and refusal to submit
+without a matching lease account. CI must execute these on the new head.
+
+Remaining release gates: reviewed activation/audit of existing CloudKit zones,
+real development-container two-device acceptance, and successful simulator CI
+on the new head. Local fake-store tests do not prove CloudKit schema,
+entitlements or Last.fm acceptance. Xcode 27/macOS 27 CodeQL tracing remains
+unsupported upstream; audit CI stays on Xcode 26.0/macOS 15. No production data,
+auth configuration, cloud activation, release publication or deployment was
+performed. PR remains draft pending review.
