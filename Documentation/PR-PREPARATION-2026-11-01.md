@@ -197,3 +197,26 @@ entitlements or Last.fm acceptance. Xcode 27/macOS 27 CodeQL tracing remains
 unsupported upstream; audit CI stays on Xcode 26.0/macOS 15. No production data,
 auth configuration, cloud activation, release publication or deployment was
 performed. PR remains draft pending review.
+
+### CI credential-test follow-up
+
+The iOS simulator CI on `099131b` actually executed all 17 tests: 16 passed;
+`testAccountSwitchCannotUseNewSessionForOldLease` failed with Security status
+`-34018` when writing its isolated Keychain service from the unsigned test app.
+This is separate from the local runner hang above. The account regression now
+uses an explicit in-memory `CompanionKeychain` initializer. It runs
+the same actor's session replacement, normalized account binding and disconnect
+logic without requiring signing entitlements or touching any secure-storage
+items. All network-client test defaults now use that isolated store too.
+Production callers still use the default Security.framework initializer;
+the in-memory initializer is used only by tests. No CI signing setting, test assertion, skip or
+audit threshold was relaxed.
+
+A standalone host regression compiled the same Keychain actor with DEBUG and
+passed session replacement/account mismatch/disconnect checks. Formatting,
+patch hygiene and the repository credential scan passed. The iOS simulator
+suite must pass on the updated CI head; in-memory checks do not prove device
+Keychain entitlement/access behavior.
+The updated iOS app and test bundle passed `xcodebuild build-for-testing` using
+the cached resolved package graph. This is compilation evidence only; simulator
+execution is still delegated to CI.

@@ -6,12 +6,20 @@ actor CompanionKeychain {
     private let service: String
     /// The service the companion used while the app shipped as PresenceFM.
     private let legacyService: String
+    private var memoryValues: [Key: String]?
+
+    /// Explicit test dependency: exercises account/session operations without
+    /// Security.framework or signing entitlements. App callers use the default initializer.
+    init(inMemoryValues: [Key: String]) {
+        service = ""; legacyService = ""; memoryValues = inMemoryValues
+    }
 
     init(service: String = "fm.aura.companion", legacyService: String = "fm.presence.companion") {
         self.service = service; self.legacyService = legacyService
     }
 
     func value(for key: Key) -> String? {
+        if let memoryValues { return memoryValues[key] }
         if let value = read(key, service: service) { return value }
         // Adopt the PresenceFM-era item once so upgrading users keep their Last.fm
         // session and device identity instead of being asked to authorize again.
@@ -62,6 +70,7 @@ actor CompanionKeychain {
     }
 
     func set(_ value: String?, for key: Key) throws {
+        if memoryValues != nil { memoryValues?[key] = value; return }
         let base: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

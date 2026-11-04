@@ -79,8 +79,7 @@ final class CompanionReliabilityTests: XCTestCase {
     }
 
     func testAccountSwitchCannotUseNewSessionForOldLease() async throws {
-        let scope = "fm.aura.tests.\(UUID().uuidString)"
-        let keychain = CompanionKeychain(service: scope, legacyService: scope + ".legacy")
+        let keychain = CompanionKeychain(inMemoryValues: [:])
         do {
             try await keychain.setSession("session-a", username: "ListenerA")
             let client = makeClient(keychain: keychain)
@@ -225,7 +224,7 @@ final class CompanionReliabilityTests: XCTestCase {
         XCTAssertEqual(dates, [newest, newest.addingTimeInterval(-180), newest.addingTimeInterval(-360)])
     }
 
-    private func makeClient(keychain: CompanionKeychain = CompanionKeychain()) -> CompanionLastFMClient {
+    private func makeClient(keychain: CompanionKeychain = CompanionKeychain(inMemoryValues: [:])) -> CompanionLastFMClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [CompanionURLProtocol.self]
         return CompanionLastFMClient(
