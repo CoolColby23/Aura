@@ -84,6 +84,29 @@ struct PlaybackResponsivenessTests {
         #expect(model.discordArtworkURL == nil)
     }
 
+    @Test @MainActor func invalidationFencesAnUncancelledArtworkDownload() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let stalled = StalledCoverRequest()
+        let image = NSImage(size: NSSize(width: 2, height: 2))
+        image.lockFocus(); NSColor.systemBlue.setFill(); NSRect(x: 0, y: 0, width: 2, height: 2).fill(); image.unlockFocus()
+        let bitmap = try #require(image.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:)))
+        let bytes = try #require(bitmap.representation(using: .png, properties: [:]))
+        let service = ArtworkService(
+            directory: directory,
+            fetch: { request in
+                await stalled.wait()
+                return (bytes, try #require(HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)))
+            })
+        let identity = TrackIdentity(persistentID: "refresh")
+        let request = Task { await service.downloadedArtwork(from: URL(string: "https://example.com/old.png")!, for: identity) }
+        while !(await stalled.started) { await Task.yield() }
+        await service.invalidateArtwork(for: identity)
+        await stalled.release()
+        #expect(await request.value == nil)
+        #expect(await service.cachedArtwork(for: identity) == nil)
+    }
+
     private func track(_ id: String, artwork: ArtworkReference?) -> TrackMetadata {
         TrackMetadata(
             identity: .init(persistentID: id), title: id, artist: "Artist", album: "Album",

@@ -11,8 +11,14 @@ export AURA_BUILD_NUMBER="${AURA_BUILD_NUMBER:-$(date -u +%Y.%m.%d)}"
 "$ROOT/scripts/package-app.sh"
 "$ROOT/scripts/verify-package.sh" "$ROOT/Aura.app"
 
-TARGET_APP="/Applications/Aura.app"
-if pgrep -x Aura >/dev/null; then
+# Review and CI can validate the same sync path without replacing the installed
+# app or terminating a user's running copy. The production preview stays default.
+TARGET_APP="${AURA_PREVIEW_APP_PATH:-/Applications/Aura.app}"
+if [[ "$TARGET_APP" != /* || "${TARGET_APP:t}" != "Aura.app" || "$TARGET_APP" == "$ROOT/Aura.app" ]]; then
+  echo "AURA_PREVIEW_APP_PATH must be an absolute path ending in Aura.app outside the package source" >&2
+  exit 1
+fi
+if [[ "$TARGET_APP" == "/Applications/Aura.app" ]] && pgrep -x Aura >/dev/null; then
   pkill -x Aura
   for _ in {1..30}; do
     pgrep -x Aura >/dev/null || break
@@ -23,6 +29,7 @@ if pgrep -x Aura >/dev/null; then
     exit 1
   fi
 fi
+mkdir -p "${TARGET_APP:h}"
 rm -rf "$TARGET_APP"
 cp -R "$ROOT/Aura.app" "$TARGET_APP"
 "$ROOT/scripts/verify-package.sh" "$TARGET_APP"

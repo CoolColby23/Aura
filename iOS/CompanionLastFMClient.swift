@@ -4,7 +4,7 @@ import Foundation
 import UIKit
 
 enum CompanionLastFMError: LocalizedError {
-    case configuration, unauthorized, invalidResponse, api(String)
+    case configuration, unauthorized, invalidResponse, accountChanged, api(String)
     /// Last.fm refused this play for a reason that cannot change on a retry.
     case rejected(String)
     /// Last.fm refused this play for a reason that can clear. `after` is the minimum wait.
@@ -13,6 +13,7 @@ enum CompanionLastFMError: LocalizedError {
         switch self {
         case .configuration: "Enter your Last.fm API credentials in Aura."
         case .unauthorized: "Connect Last.fm in Settings."
+        case .accountChanged: "Last.fm account changed before submission. The listen remains queued."
         case .invalidResponse: "Last.fm returned an invalid response."
         case .api(let message), .rejected(let message), .retryLater(let message, _): message
         }
@@ -96,7 +97,7 @@ actor CompanionLastFMClient {
         else {
             throw CompanionLastFMError.invalidResponse
         }
-        try await keychain.set(key, for: .lastFMSession); try await keychain.set(username, for: .lastFMUsername)
+        try await keychain.setSession(key, username: username)
         UserDefaults.standard.removeObject(forKey: "AuraLastFMAuthToken")
         return username
     }
@@ -155,7 +156,7 @@ actor CompanionLastFMClient {
     }
 
     func disconnect() async throws {
-        try await keychain.set(nil, for: .lastFMSession); try await keychain.set(nil, for: .lastFMUsername)
+        try await keychain.setSession(nil, username: nil)
         UserDefaults.standard.removeObject(forKey: "AuraLastFMAuthToken")
     }
 
@@ -167,9 +168,13 @@ actor CompanionLastFMClient {
         _ = try await call(method: "track.updateNowPlaying", parameters: parameters, sessionKey: sessionKey)
     }
 
-    func scrobble(_ metadata: ScrobbleMetadata) async throws {
+    func scrobble(_ metadata: ScrobbleMetadata, expectedUsername: String) async throws {
         guard let startedAt = metadata.startedAt else { throw CompanionLastFMError.invalidResponse }
-        let sessionKey = try await requiredSession()
+        // Bind the network request to the account that owns the CloudKit lease.
+        // The captured session remains that account's even across rate-limit waits.
+        guard let sessionKey = await keychain.session(for: expectedUsername), !sessionKey.isEmpty else {
+            throw CompanionLastFMError.accountChanged
+        }
         var parameters = [
             "track": metadata.title, "artist": metadata.artist,
             "timestamp": String(Int(startedAt.timeIntervalSince1970)),
@@ -213,16 +218,20 @@ actor CompanionLastFMClient {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw CompanionLastFMError.invalidResponse }
         if http.statusCode == 429 {
-            let retryAfter = TimeInterval(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 30
-            earliestRequest = Date().addingTimeInterval(max(5, retryAfter))
-            throw CompanionLastFMError.api("Last.fm is busy. Aura will retry automatically.")
+            let rawDelay = TimeInterval(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 30
+            let retryAfter = rawDelay.isFinite ? min(300, max(5, rawDelay)) : 30
+            earliestRequest = max(earliestRequest, Date().addingTimeInterval(retryAfter))
+            throw CompanionLastFMError.retryLater("Last.fm is busy. Aura will retry automatically.", after: retryAfter)
         }
         guard (200...299).contains(http.statusCode),
             let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { throw CompanionLastFMError.invalidResponse }
         if let message = object["message"] as? String {
             let code = (object["error"] as? Int) ?? (object["error"] as? String).flatMap(Int.init)
-            if code == 29 { earliestRequest = Date().addingTimeInterval(30) }
+            if code == 29 || code == 11 || code == 16 {
+                earliestRequest = max(earliestRequest, Date().addingTimeInterval(30))
+                throw CompanionLastFMError.retryLater(message, after: 30)
+            }
             throw CompanionLastFMError.api(message)
         }
         return object

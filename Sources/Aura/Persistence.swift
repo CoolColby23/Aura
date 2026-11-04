@@ -282,7 +282,11 @@ final class PersistenceStore {
     @discardableResult
     func enqueue(_ session: PlaybackSession, now: Date = .now) -> QueueAdmission {
         let key = session.duplicateKey
-        let descriptor = FetchDescriptor<ScrobbleRecord>(predicate: #Predicate { $0.duplicateKey == key })
+        let legacyKey = session.legacyDuplicateKey
+        let startedAt = session.startedAt
+        let descriptor = FetchDescriptor<ScrobbleRecord>(
+            predicate: #Predicate { $0.duplicateKey == key || ($0.duplicateKey == legacyKey && $0.startedAt == startedAt) }
+        )
         guard (try? context.fetchCount(descriptor)) == 0 else { return .duplicate }
 
         let pendingRaw = QueueState.pending.rawValue

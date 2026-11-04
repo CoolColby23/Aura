@@ -96,12 +96,21 @@ public actor CloudSubmissionCoordinator: SubmissionCoordinator {
         // merger's 90-second window even across a bucket boundary. Catalog IDs
         // and device IDs deliberately do not partition cross-device lookup.
         var indices: [CKRecord] = []
-        var candidateIDs: Set<String> = [local.id]
+        let cloudID = "play-" + CanonicalListenIdentity.cloudIndex(metadata: local.canonicalMetadata) + "-" + String(date.timeIntervalSince1970)
+        var candidateIDs: Set<String> = [local.id, cloudID]
+        var indexedIDs: Set<String> = []
         for offset in -1...1 {
             let indexID = id(CanonicalListenIdentity.cloudIndex(metadata: local.canonicalMetadata, offset: offset))
-            let index = try await database.fetch(indexID) ?? CKRecord(recordType: "Listen", recordID: indexID)
+            let existingIndex = try await database.fetch(indexID)
+            if let existingIndex {
+                guard existingIndex.recordType == "Listen", existingIndex["listenIDs"] is [String]
+                else { throw CloudCoordinationError.ambiguousIdentity }
+            }
+            let index = existingIndex ?? CKRecord(recordType: "Listen", recordID: indexID)
             indices.append(index)
-            candidateIDs.formUnion(index["listenIDs"] as? [String] ?? [])
+            let links = index["listenIDs"] as? [String] ?? []
+            indexedIDs.formUnion(links)
+            candidateIDs.formUnion(links)
             for evidence in local.evidence {
                 let timestamp = (evidence.originalMetadata.startedAt ?? evidence.capturedAt).timeIntervalSince1970
                 guard timestamp.isFinite, abs(timestamp) < 1e12 else { throw CloudCoordinationError.ambiguousIdentity }
@@ -110,7 +119,13 @@ public actor CloudSubmissionCoordinator: SubmissionCoordinator {
         }
         var matches: [CKRecord] = []
         for candidateID in candidateIDs.sorted() {
-            guard let record = try await database.fetch(id(candidateID)) else { continue }
+            guard let record = try await database.fetch(id(candidateID)) else {
+                // A dangling index may refer to an accepted play. Recreating it
+                // silently would turn damaged evidence into a duplicate scrobble.
+                if indexedIDs.contains(candidateID) { throw CloudCoordinationError.ambiguousIdentity }
+                continue
+            }
+            guard record.recordType == "Listen" else { throw CloudCoordinationError.ambiguousIdentity }
             guard let startedAt = record["startedAt"] as? Date,
                 let title = record["title"] as? String, let artist = record["artist"] as? String
             else { throw CloudCoordinationError.ambiguousIdentity }
@@ -139,7 +154,6 @@ public actor CloudSubmissionCoordinator: SubmissionCoordinator {
             record = match
         } else {
             // Never reuse a legacy ledger key for a different play.
-            let cloudID = "play-" + CanonicalListenIdentity.cloudIndex(metadata: local.canonicalMetadata) + "-" + String(date.timeIntervalSince1970)
             record = CKRecord(recordType: "Listen", recordID: id(cloudID))
             record["title"] = local.canonicalMetadata.title as CKRecordValue
             record["artist"] = local.canonicalMetadata.artist as CKRecordValue

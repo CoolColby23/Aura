@@ -34,6 +34,9 @@ actor ArtworkService {
     private let directory: URL
     private let clock: any AppClock
     private let fetch: @Sendable (URLRequest) async throws -> (Data, URLResponse)
+    // A single bounded epoch also fences requests for an invalidated identity
+    // that finish after a refresh. No per-track generation map can grow forever.
+    private var cacheGeneration = UUID()
     private var memory: [String: Data] = [:]
     private var accessOrder: [String] = []
     private var catalogURLs: [String: URL] = [:]
@@ -63,6 +66,7 @@ actor ArtworkService {
 
     func artworkResult(for track: TrackMetadata) async -> ArtworkLoadResult? {
         guard !Task.isCancelled else { return nil }
+        let generation = cacheGeneration
         let key = cacheKey(for: track.identity)
         if let data = memory[key] {
             touch(key)
@@ -85,7 +89,7 @@ actor ArtworkService {
                     failedPlayerURLs.removeValue(forKey: key)
                     return ArtworkLoadResult(data: downloaded, source: .playerURL)
                 }
-                guard !Task.isCancelled else { return nil }
+                guard !Task.isCancelled, generation == cacheGeneration else { return nil }
                 failedPlayerURLs[key] = (sourceURL, clock.now)
                 trimLookupCaches()
             }
@@ -104,10 +108,11 @@ actor ArtworkService {
                     currentArtwork = cleaned
                     break
                 }
-                guard !Task.isCancelled else { return nil }
+                guard !Task.isCancelled, generation == cacheGeneration else { return nil }
                 if attempt < 3 { try? await clock.sleep(until: clock.now.addingTimeInterval(0.15)) }
             }
         }
+        guard !Task.isCancelled, generation == cacheGeneration else { return nil }
         if let data = currentArtwork {
             insert(data, key: key)
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -118,11 +123,12 @@ actor ArtworkService {
 
         // Automatic fallback: fetch catalog artwork URL and download
         if let publicURL = await publicArtworkURL(for: track) {
+            guard !Task.isCancelled, generation == cacheGeneration else { return nil }
             if let downloaded = await downloadedArtwork(from: publicURL, for: track.identity) {
                 let source: ArtworkSource = Self.directPublicArtworkURL(for: track) == publicURL ? .playerURL : .appleCatalog
                 return ArtworkLoadResult(data: downloaded, source: source)
             }
-            guard !Task.isCancelled else { return nil }
+            guard !Task.isCancelled, generation == cacheGeneration else { return nil }
             // A catalog hit is not usable artwork until its image loads. Avoid
             // handing a known-broken cover to Discord or retrying every poll.
             catalogURLs.removeValue(forKey: key)
@@ -167,8 +173,9 @@ actor ArtworkService {
     /// Finds a public cover URL suitable for Discord's external asset field.
     /// Local artwork bytes never leave the Mac.
     func publicArtworkURL(for track: TrackMetadata) async -> URL? {
+        let generation = cacheGeneration
         let key = cacheKey(for: track.identity)
-        guard !Task.isCancelled else { return nil }
+        guard !Task.isCancelled, generation == cacheGeneration else { return nil }
         if let directURL = Self.directPublicArtworkURL(for: track),
             shouldTryPlayerURL(directURL, key: key)
         {
@@ -184,15 +191,15 @@ actor ArtworkService {
 
         let queries = catalogSearchTerms(for: track)
         for term in queries {
-            guard !Task.isCancelled else { return nil }
+            guard !Task.isCancelled, generation == cacheGeneration else { return nil }
             if let result = await catalogArtworkURL(term: term, track: track) {
-                guard !Task.isCancelled else { return nil }
+                guard !Task.isCancelled, generation == cacheGeneration else { return nil }
                 catalogURLs[key] = result
                 trimLookupCaches()
                 return result
             }
         }
-        guard !Task.isCancelled else { return nil }
+        guard !Task.isCancelled, generation == cacheGeneration else { return nil }
         catalogMisses[key] = clock.now
         trimLookupCaches()
         return nil
@@ -260,6 +267,7 @@ actor ArtworkService {
     }
 
     func invalidatePublicArtworkLookup(for identity: TrackIdentity) {
+        cacheGeneration = UUID()
         let key = cacheKey(for: identity)
         catalogURLs.removeValue(forKey: key)
         catalogMisses.removeValue(forKey: key)
@@ -267,6 +275,7 @@ actor ArtworkService {
     }
 
     func invalidateArtwork(for identity: TrackIdentity) {
+        cacheGeneration = UUID()
         let key = cacheKey(for: identity)
         memory.removeValue(forKey: key)
         accessOrder.removeAll { $0 == key }
@@ -279,6 +288,7 @@ actor ArtworkService {
     }
 
     func downloadedArtwork(from url: URL, for identity: TrackIdentity) async -> Data? {
+        let generation = cacheGeneration
         do {
             var request = URLRequest(url: url)
             request.timeoutInterval = IntegrationPolicy.artworkTimeout
@@ -287,6 +297,7 @@ actor ArtworkService {
                 data.count <= IntegrationPolicy.artworkDownloadLimit, let cleaned = Self.extractImageBytes(data)
             else { return nil }
             guard !Task.isCancelled else { return nil }
+            guard generation == cacheGeneration else { return nil }
             return cache(cleaned, for: identity) ? cleaned : nil
         } catch {
             return nil

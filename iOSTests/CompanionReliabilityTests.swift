@@ -62,6 +62,55 @@ final class CompanionReliabilityTests: XCTestCase {
         CompanionURLProtocol.reset()
     }
 
+    func testRateLimitIsDefiniteRetryWithFiniteDelay() async throws {
+        for header in ["45", "nan", "inf", "-10"] {
+            CompanionURLProtocol.handler = { request in
+                (HTTPURLResponse(url: request.url!, statusCode: 429, httpVersion: nil, headerFields: ["Retry-After": header])!, Data())
+            }
+            do { _ = try await makeClient().recentTracks(username: "listener"); XCTFail("Rate limit ignored") } catch CompanionLastFMError.retryLater(
+                _, let delay)
+            {
+                XCTAssertTrue(delay.isFinite)
+                XCTAssertGreaterThanOrEqual(delay, 5)
+                XCTAssertLessThanOrEqual(delay, 300)
+                if header == "45" { XCTAssertEqual(delay, 45) }
+            }
+        }
+    }
+
+    func testAccountSwitchCannotUseNewSessionForOldLease() async throws {
+        let scope = "fm.aura.tests.\(UUID().uuidString)"
+        let keychain = CompanionKeychain(service: scope, legacyService: scope + ".legacy")
+        do {
+            try await keychain.setSession("session-a", username: "ListenerA")
+            let client = makeClient(keychain: keychain)
+            try await keychain.setSession("session-b", username: "ListenerB")
+            do {
+                try await client.scrobble(.init(title: "Track", artist: "Artist", startedAt: .now), expectedUsername: "listenera")
+                XCTFail("Old lease used the new account")
+            } catch CompanionLastFMError.accountChanged {}
+            XCTAssertEqual(CompanionURLProtocol.requestCount, 0)
+            let session = await keychain.session(for: " LISTENERB ")
+            XCTAssertEqual(session, "session-b")
+            try await keychain.setSession(nil, username: nil)
+            let cleared = await keychain.session(for: "listenerb")
+            XCTAssertNil(cleared)
+        } catch {
+            try? await keychain.setSession(nil, username: nil)
+            throw error
+        }
+    }
+
+    func testLeaseAccountMismatchDoesNotSendRequest() async throws {
+        // Empty expected identity cannot match an authorized account. This test
+        // never writes credentials or touches a real Last.fm account.
+        do {
+            try await makeClient().scrobble(.init(title: "Track", artist: "Artist", startedAt: .now), expectedUsername: "")
+            XCTFail("Unbound account submitted")
+        } catch CompanionLastFMError.accountChanged {}
+        XCTAssertEqual(CompanionURLProtocol.requestCount, 0)
+    }
+
     func testRecentTracksBoundsPaginationAndDeduplicatesResults() async throws {
         CompanionURLProtocol.handler = { request in
             let values = Self.formValues(request)
@@ -176,12 +225,12 @@ final class CompanionReliabilityTests: XCTestCase {
         XCTAssertEqual(dates, [newest, newest.addingTimeInterval(-180), newest.addingTimeInterval(-360)])
     }
 
-    private func makeClient() -> CompanionLastFMClient {
+    private func makeClient(keychain: CompanionKeychain = CompanionKeychain()) -> CompanionLastFMClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [CompanionURLProtocol.self]
         return CompanionLastFMClient(
             credentials: .init(apiKey: "api-key", sharedSecret: "secret"),
-            keychain: CompanionKeychain(),
+            keychain: keychain,
             session: URLSession(configuration: configuration)
         )
     }

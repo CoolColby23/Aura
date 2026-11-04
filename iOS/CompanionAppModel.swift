@@ -489,7 +489,7 @@ final class CompanionAppModel {
         do {
             let lease = try await cloud.acquireLease(for: listen); try await store.setState(.submitting, for: listen.id)
             do {
-                try await lastFM.scrobble(listen.canonicalMetadata); let date = Date()
+                try await lastFM.scrobble(listen.canonicalMetadata, expectedUsername: lease.accountUsername); let date = Date()
                 submissionNotBefore.removeValue(forKey: listen.id)
                 // Acceptance must never fall through the retry path if saving
                 // the cloud receipt fails. A stale cloud lease remains uncertain.
@@ -510,7 +510,12 @@ final class CompanionAppModel {
                 submissionNotBefore[listen.id] = Date().addingTimeInterval(delay)
                 // Only a definite server refusal is safe to retry. A timeout
                 // may mean Last.fm accepted the request but lost the response.
-                if case .retryLater = error as? CompanionLastFMError {
+                let safeToRetry: Bool
+                switch error as? CompanionLastFMError {
+                case .retryLater, .accountChanged: safeToRetry = true
+                default: safeToRetry = false
+                }
+                if safeToRetry {
                     try? await cloud.complete(lease, result: .deferred("Last.fm deferred this submission."))
                     try await store.setState(.queued, for: listen.id)
                 }

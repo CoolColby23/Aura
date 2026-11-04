@@ -173,6 +173,24 @@ struct CloudCoordinationTests {
         do { _ = try await cloud.acquireLease(for: play); Issue.record("Incomplete receipt accepted") } catch CloudCoordinationError.ambiguousIdentity {}
     }
 
+    @Test func danglingOrMalformedIndexNeverPermitsSubmission() async throws {
+        for malformed in [false, true] {
+            let store = IsolatedCloudStore(), cloud = coordinator(store), play = listen()
+            try await cloud.prepare()
+            let index = CKRecord(
+                recordType: "Listen",
+                recordID: .init(
+                    recordName: CanonicalListenIdentity.cloudIndex(metadata: play.canonicalMetadata), zoneID: CloudSubmissionCoordinator.zoneID))
+            index["listenIDs"] = malformed ? "corrupt" as CKRecordValue : ["missing-receipt"] as CKRecordValue
+            try await store.save([index])
+            do { _ = try await cloud.acquireLease(for: play); Issue.record("Damaged index allowed a duplicate submission") } catch CloudCoordinationError
+                .ambiguousIdentity
+            {}
+            #expect(await store.record("global")?["username"] == nil)
+            #expect(await store.submittedCount() == 0)
+        }
+    }
+
     @Test func ambiguousMatchesAreReviewedRatherThanMergedIntoFirst() {
         let one = listen(-80), two = listen(80), middle = listen()
         #expect(DefaultEvidenceMerger().merge(middle.evidence[0], into: [one, two]) == .review(nil, .ambiguousDuplicate))

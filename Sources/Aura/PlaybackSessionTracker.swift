@@ -103,6 +103,9 @@ actor PlaybackSessionTracker {
                     session.accumulatedPlayTime += min(wallDelta, max(0, positionDelta + 1))
                 }
             }
+            // Duration and other metadata can arrive after the first observation.
+            // Keep earned play time and identity while reevaluating eligibility.
+            session.track = track
             session.lastPosition = snapshot.position
             let before = session.eligibility
             session.eligibility = eligibility(for: session)
