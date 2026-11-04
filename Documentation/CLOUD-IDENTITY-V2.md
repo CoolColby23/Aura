@@ -23,7 +23,10 @@ the independent Mac queue participates in cross-device CloudKit deduplication.
   bounded to half the shorter known track duration for short-track repeats;
   multiple candidates require review rather than choosing the first source-ID
   match. Two existing rows with one legacy key cannot be updated individually:
-  submission is blocked before sending, preserving the file for reconciliation.
+  passive single/batch evidence ingestion and submission are blocked before
+  selecting a row. Back up duplicate-ID ledgers before running any new client;
+  reconcile them separately rather than relying on an ID-only merge. No repair
+  or migration is performed by capture.
 - Cloud lookup is separate from local IDs. Three metadata/time indices (the
   current two-minute bucket and its neighbors) link to actual play records. The
   indices ignore device and catalog IDs. Matching requires metadata and start
@@ -83,7 +86,10 @@ and cloud windows both distinguish normal short-track repeats from one play.
    old HTTP request already in flight; that is why quiescence is mandatory.
 6. Verify two physical devices in the development container before separately
    approving any production upgrade. Rollback to an old binary must keep the
-   gate fenced; do not strip its versioned username and resume blind submissions.
+   gate fenced and keep all old clients disconnected from the zone. Older
+   capture flows call passive sync before acquiring a lease; the gate cannot
+   prevent that sync from overwriting receipt metadata/state. Do not reconnect
+   old clients or strip the versioned username during rollback.
 
 An empty newly created zone can initialize v2 directly. Existing unversioned
 zones remain queued until the above reviewed compatibility upgrade. Local-only

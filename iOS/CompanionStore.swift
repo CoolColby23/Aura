@@ -80,6 +80,7 @@ actor CompanionStore {
     }
 
     @discardableResult func ingest(_ evidence: PlaybackEvidence) throws -> CanonicalListen {
+        try requireUniqueListenIDs()
         let listen = ingestWithoutPersisting(evidence)
         try persist()
         return listen
@@ -87,8 +88,15 @@ actor CompanionStore {
 
     func ingest(_ evidence: [PlaybackEvidence]) throws {
         guard !evidence.isEmpty else { return }
+        try requireUniqueListenIDs()
         for item in evidence { _ = ingestWithoutPersisting(item) }
         try persist()
+    }
+
+    private func requireUniqueListenIDs() throws {
+        guard Set(snapshot.listens.map(\.id)).count == snapshot.listens.count else {
+            throw CompanionStoreError.ambiguousListenID
+        }
     }
 
     private func ingestWithoutPersisting(_ evidence: PlaybackEvidence) -> CanonicalListen {

@@ -220,3 +220,25 @@ Keychain entitlement/access behavior.
 The updated iOS app and test bundle passed `xcodebuild build-for-testing` using
 the cached resolved package graph. This is compilation evidence only; simulator
 execution is still delegated to CI.
+
+### Review follow-up — receipt preservation and submission reentrancy
+
+Passive single and batch ingestion now reject duplicate-ID ledgers before any
+merge, with a regression that targets the second legacy row and checks both
+in-memory listens and on-disk bytes remain unchanged. No ID repair is attempted.
+Rollback requires old clients to remain disconnected: their passive cloud sync
+is not fenced by the versioned lease gate.
+
+Companion submissions now claim a MainActor per-listen slot before awaiting,
+release it on every exit, then re-read the unique stored listen and private-mode
+state. Stale queued copies cannot resubmit a completed listen in local-only mode.
+Configuration failures and CancellationError from the pre-request rate-slot
+sleep release/requeue the unused lease; URLSession transport cancellation remains
+an uncertain outcome. Claude clarified the history action as Export Local
+History, hid it on the Last.fm tab, and documented that remote scrobbles are not
+included. The existing local period/search/outcome filters are preserved.
+
+The iOS app and expanded test bundle compiled successfully. Formatting,
+credential scan and patch hygiene passed. Local simulator execution is not
+claimed; updated regression execution awaits CI. The required macOS preview
+sync uses `/tmp/Aura-PR42-Followup/Aura.app` rather than `/Applications`.

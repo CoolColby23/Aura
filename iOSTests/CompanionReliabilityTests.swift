@@ -55,6 +55,12 @@ final class CompanionReliabilityTests: XCTestCase {
         let store = CompanionStore(fileURL: url)
         do { try await store.setState(.submitted, for: one.id); XCTFail("Ambiguous legacy key accepted") } catch CompanionStoreError.ambiguousListenID {}
         XCTAssertEqual(try Data(contentsOf: url), original)
+        let evidence = two.evidence[0]
+        do { _ = try await store.ingest(evidence); XCTFail("Passive capture merged a duplicate key") } catch CompanionStoreError.ambiguousListenID {}
+        do { try await store.ingest([evidence]); XCTFail("Batch capture merged a duplicate key") } catch CompanionStoreError.ambiguousListenID {}
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        let preserved = await store.current()
+        XCTAssertEqual(preserved.listens, fixture.listens)
     }
 
     override func setUp() {

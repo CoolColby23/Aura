@@ -70,8 +70,11 @@ struct ListeningHistoryView: View {
                         }
                         .disabled(!hasLastFMConnection || model.lastFMRemoteTracksLoading)
                     }
-                    Button("Export Visible History…", systemImage: "square.and.arrow.up") { exportVisibleHistory() }
-                        .disabled(exportableRecords.isEmpty)
+                    if tab != .lastFM {
+                        Button("Export Local History…", systemImage: "square.and.arrow.up") { exportLocalHistory() }
+                            .help("Exports Aura’s local listening history matching the current filters. Last.fm scrobbles aren’t included.")
+                            .disabled(exportableRecords.isEmpty)
+                    }
                     Divider()
                     Button("Clear Listening History…", systemImage: "trash", role: .destructive) { showingClearConfirmation = true }
                         .disabled(records.isEmpty)
@@ -92,7 +95,7 @@ struct ListeningHistoryView: View {
             isPresented: $showingExporter,
             document: exportDocument,
             contentType: .commaSeparatedText,
-            defaultFilename: "Aura-History"
+            defaultFilename: "Aura-Local-History"
         ) { _ in exportDocument = nil }
         .task(id: tab == .lastFM || includeLastFMInActivity) {
             if tab == .lastFM || includeLastFMInActivity {
@@ -560,9 +563,15 @@ struct ListeningHistoryView: View {
         }
     }
 
-    /// What "Export Visible History" writes: the outcome filter only applies where it is visible.
+    /// What "Export Local History" writes: local Aura records only, never Last.fm scrobbles, using the
+    /// current period/search filters (plus the outcome filter where it is visible). The Last.fm tab shows
+    /// no local rows, so nothing is exportable there.
     private var exportableRecords: [ActivityRecord] {
-        tab == .activity ? filteredRecords : periodAndSearchRecords
+        switch tab {
+        case .activity: filteredRecords
+        case .overview, .insights: periodAndSearchRecords
+        case .lastFM: []
+        }
     }
 
     private var filteredRemoteTracks: [LastFMRemoteTrack] {
@@ -577,7 +586,7 @@ struct ListeningHistoryView: View {
         record.title == model.snapshot.track?.title && record.artist == model.snapshot.track?.artist
     }
 
-    private func exportVisibleHistory() {
+    private func exportLocalHistory() {
         exportDocument = HistoryCSVDocument(text: HistoryCSVExporter.csv(records: exportableRecords))
         showingExporter = true
     }

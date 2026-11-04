@@ -40,6 +40,7 @@ final class CompanionAppModel {
     /// Holds a play back after Last.fm refuses it. Capture polls about once a
     /// second, which would otherwise resubmit a daily-limit failure immediately.
     private var submissionNotBefore: [String: Date] = [:]
+    private var submissionsInFlight: Set<String> = []
 
     var history: [CanonicalListen] {
         snapshot.listens.filter { $0.state != .dismissed }.sorted {
@@ -486,6 +487,13 @@ final class CompanionAppModel {
     private func submit(_ listen: CanonicalListen, refreshHistory: Bool = true) async {
         guard !snapshot.privateMode, let cloud, let lastFM else { return }
         if let notBefore = submissionNotBefore[listen.id], notBefore > .now { return }
+        let id = listen.id
+        guard submissionsInFlight.insert(id).inserted else { return }
+        defer { submissionsInFlight.remove(id) }
+        // Capture and queue drains can resume with stale values after any await.
+        let current = await store.current()
+        let matches = current.listens.filter { $0.id == id }
+        guard !current.privateMode, matches.count == 1, let listen = matches.first, listen.state == .queued else { return }
         do {
             let lease = try await cloud.acquireLease(for: listen); try await store.setState(.submitting, for: listen.id)
             do {
@@ -511,8 +519,13 @@ final class CompanionAppModel {
                 // Only a definite server refusal is safe to retry. A timeout
                 // may mean Last.fm accepted the request but lost the response.
                 let safeToRetry: Bool
-                switch error as? CompanionLastFMError {
-                case .retryLater, .accountChanged: safeToRetry = true
+                switch error {
+                case is CancellationError: safeToRetry = true  // Rate-slot sleep; URLSession cancellation uses URLError.
+                case let failure as CompanionLastFMError:
+                    switch failure {
+                    case .retryLater, .accountChanged, .configuration: safeToRetry = true
+                    default: safeToRetry = false
+                    }
                 default: safeToRetry = false
                 }
                 if safeToRetry {
