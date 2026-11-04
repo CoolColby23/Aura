@@ -53,6 +53,9 @@ final class CompanionReliabilityTests: XCTestCase {
         try encoder.encode(fixture).write(to: url)
         let original = try Data(contentsOf: url)
         let store = CompanionStore(fileURL: url)
+        // Compare against the decoded state: ISO-8601 persistence intentionally
+        // rounds subsecond evidence timestamps in the original fixture.
+        let loaded = await store.current()
         do { try await store.setState(.submitted, for: one.id); XCTFail("Ambiguous legacy key accepted") } catch CompanionStoreError.ambiguousListenID {}
         XCTAssertEqual(try Data(contentsOf: url), original)
         let evidence = two.evidence[0]
@@ -60,7 +63,7 @@ final class CompanionReliabilityTests: XCTestCase {
         do { try await store.ingest([evidence]); XCTFail("Batch capture merged a duplicate key") } catch CompanionStoreError.ambiguousListenID {}
         XCTAssertEqual(try Data(contentsOf: url), original)
         let preserved = await store.current()
-        XCTAssertEqual(preserved.listens, fixture.listens)
+        XCTAssertEqual(preserved.listens, loaded.listens)
     }
 
     override func setUp() {

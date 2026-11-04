@@ -242,3 +242,11 @@ The iOS app and expanded test bundle compiled successfully. Formatting,
 credential scan and patch hygiene passed. Local simulator execution is not
 claimed; updated regression execution awaits CI. The required macOS preview
 sync uses `/tmp/Aura-PR42-Followup/Aura.app` rather than `/Applications`.
+
+The `d54583f` simulator job executed 17 tests with one failure in the new
+in-memory preservation assertion. Its pre-encoding fixture had fractional
+`capturedAt` dates, while the ledger ISO-8601 round trip removes fractional
+seconds. The regression now compares pre/post-operation **decoded** snapshots,
+as well as retaining the exact on-disk byte comparison and all expected-error
+assertions. This fixes the test baseline without changing ledger serialization
+or duplicate-ID handling. Simulator success on the corrected head awaits CI.
