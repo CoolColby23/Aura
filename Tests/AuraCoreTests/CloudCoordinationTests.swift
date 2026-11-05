@@ -24,6 +24,68 @@ struct CloudCoordinationTests {
         return CloudSubmissionCoordinator(database: store, deviceID: device, now: { clock }, username: { account })
     }
 
+    @Test func reviewedCompatibilityPlanPreservesReceiptAndPausesUntilExplicitResume() async throws {
+        let store = IsolatedCloudStore()
+        await store.seedOldGate()
+        let gate = await store.record("global")!
+        gate["generation"] = 7 as CKRecordValue
+        gate["username"] = " Listener " as CKRecordValue
+        let old = listen(1, source: "old-device-catalog", legacy: true)
+        let receipt = CKRecord(recordType: "Listen", recordID: .init(recordName: old.id, zoneID: CloudSubmissionCoordinator.zoneID))
+        receipt["title"] = "Track" as CKRecordValue
+        receipt["artist"] = "Artist" as CKRecordValue
+        receipt["startedAt"] = old.canonicalMetadata.startedAt as CKRecordValue?
+        receipt["state"] = "submitted" as CKRecordValue
+        receipt["submittedAt"] = start as CKRecordValue
+        receipt["username"] = "listener" as CKRecordValue
+        try await store.save([gate, receipt])
+        let exportedGate = await store.record("global")!
+        let plan = try CloudCompatibilityPlan(gate: exportedGate, records: [receipt], account: "LISTENER")
+        #expect(exportedGate["coordinationVersion"] == nil)
+        #expect(receipt["submittedAt"] as? Date == start)
+        #expect(plan.pausedGate["generation"] as? Int == 8)
+        // Only this isolated test store receives the prepared records.
+        try await store.save(plan.indices + [plan.pausedGate])
+        let clientA = coordinator(store), clientB = coordinator(store)
+        do { _ = try await clientA.acquireLease(for: listen(2)); Issue.record("Paused activation submitted") } catch CloudCoordinationError.privateMode {}
+        try await clientA.setPrivateMode(false, effectiveAt: start)
+        do { _ = try await clientB.acquireLease(for: listen(2, source: "different-catalog")); Issue.record("Legacy receipt lost") } catch CloudCoordinationError
+            .alreadySubmitted
+        {}
+        let next = try await clientB.acquireLease(for: listen(100, source: "different-catalog"))
+        try await clientB.complete(next, result: .accepted(start))
+        try await clientA.setPrivateMode(true, effectiveAt: start)
+        #expect(await store.record("global")?["username"] as? String == "aura-coordination-v2:listener")
+        #expect(await store.submittedCount() == 2)
+        #expect(await store.record(old.id)?["submittedAt"] as? Date == start)
+    }
+
+    @Test func compatibilityPlanRejectsUnknownOutcomesOwnershipAndDanglingIndices() throws {
+        let gate = CKRecord(recordType: "SubmissionGate", recordID: .init(recordName: "global", zoneID: CloudSubmissionCoordinator.zoneID))
+        gate["generation"] = 1 as CKRecordValue
+        gate["username"] = "listener" as CKRecordValue
+        let play = CKRecord(recordType: "Listen", recordID: .init(recordName: "legacy", zoneID: gate.recordID.zoneID))
+        play["title"] = "Track" as CKRecordValue
+        play["artist"] = "Artist" as CKRecordValue
+        play["startedAt"] = start as CKRecordValue
+        play["state"] = "submitted" as CKRecordValue
+        play["username"] = "listener" as CKRecordValue
+        #expect(throws: CloudCompatibilityPlan.Invalid.self) { try CloudCompatibilityPlan(gate: gate, records: [play], account: "listener") }
+        play["submittedAt"] = start as CKRecordValue
+        play["username"] = "other" as CKRecordValue
+        #expect(throws: CloudCompatibilityPlan.Invalid.self) { try CloudCompatibilityPlan(gate: gate, records: [play], account: "listener") }
+        play["username"] = "listener" as CKRecordValue
+        play["leaseToken"] = "uncertain" as CKRecordValue
+        #expect(throws: CloudCompatibilityPlan.Invalid.self) { try CloudCompatibilityPlan(gate: gate, records: [play], account: "listener") }
+        play["leaseToken"] = nil
+        let index = CKRecord(recordType: "Listen", recordID: .init(recordName: "index-v2-broken", zoneID: gate.recordID.zoneID))
+        index["listenIDs"] = ["missing"] as CKRecordValue
+        #expect(throws: CloudCompatibilityPlan.Invalid.self) { try CloudCompatibilityPlan(gate: gate, records: [play, index], account: "listener") }
+        gate["coordinationVersion"] = 3 as CKRecordValue
+        #expect(throws: CloudCompatibilityPlan.Invalid.self) { try CloudCompatibilityPlan(gate: gate, records: [], account: "listener") }
+
+    }
+
     @Test func identityMetadataNormalizationIsLocaleIndependent() {
         #expect("İSTANBUL".presenceNormalized == "istanbul")
         #expect("  CÁFÉ—Track  ".presenceNormalized == "cafe track")

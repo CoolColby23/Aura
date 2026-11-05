@@ -36,3 +36,9 @@ gallery, verify timeline/progress refresh and Private Mode entry/exit. Verify
 privacy also removes the previous public snapshot from the shared suite. Test
 upgrade from the existing installed host with an existing widget. Keep these as
 hardware gates; an unsigned build or ad-hoc signature does not satisfy them.
+
+The existing tag release workflow still explicitly selects ad-hoc signing and
+creates draft artifacts. Before a widget-capable public release, its packaging
+step must be configured with the reviewed signing identity and matching profiles
+through secure CI inputs, and provisioned hardware acceptance must pass. No CI
+secrets were installed or release signing policy silently changed by this PR.

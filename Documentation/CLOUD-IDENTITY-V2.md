@@ -113,3 +113,75 @@ CloudKit schema, entitlements, network behavior or Last.fm acceptance.
 Companion store tests use temporary ledgers and check repeat-play persistence and
 refusal to update a duplicate legacy key. iOS build/test results are recorded in
 the PR preparation document. Build-for-testing is not a simulator test pass.
+
+## Read-only schema verification and reversible activation procedure
+
+Use Apple's [text schema workflow](https://developer.apple.com/documentation/cloudkit/integrating-a-text-based-schema-into-your-workflow)
+and export the **existing** schema, retaining every existing type, field, index
+and permission. The requirements checker is deliberately not an importable
+replacement schema. It cannot prove private-zone ownership or record contents.
+
+With an already configured management token in the keychain/environment:
+
+```sh
+xcrun cktool export-schema --team-id "$TEAM_ID" --container-id "$CONTAINER_ID" \
+  --environment development --output-file /tmp/aura-development.ckdb
+python3 scripts/verify-cloud-schema.py /tmp/aura-development.ckdb
+xcrun cktool validate-schema --team-id "$TEAM_ID" --container-id "$CONTAINER_ID" \
+  --environment development --file /tmp/aura-development.ckdb
+```
+
+Production schema export/validation is also read-only, but never run import,
+reset, promotion or record mutation as part of this PR. For isolated schema
+experiments use a separately approved disposable container, not production.
+On this machine `cktool get-teams` reports **no management token**; no schema was
+exported or verified remotely. No compatible provisioning profiles are present.
+Schema access remains an explicit external blocker, not a passed test.
+
+`CloudCompatibilityPlan` is an internal, offline preparation primitive, exercised
+against the isolated record store. It has no database or production call site.
+Given a full reconciled export of the global gate and all Listen records, it
+prepares additive index records and a **paused** v2 gate. It copies CloudKit
+system fields/change tags, preserves existing index links, leaves play records
+and receipts untouched, normalizes the selected account, and rejects missing
+ownership, missing submitted receipts, leases/unknown outcomes, duplicate record
+IDs, dangling links and invalid metadata. Missing legacy owners must be resolved
+from independent evidence by the operator; the planner never invents them.
+It cannot establish export completeness or detect historically overwritten
+metadata. Those remain prerequisites to any separately authorized migration.
+
+The exact future activation sequence is:
+
+1. Quiesce **all** clients (including passive writers and the independent Mac
+   Last.fm queue), settle/reconcile HTTP outcomes, record client versions and
+   snapshot time. Back up local ledgers and a complete paginated private-zone
+   export including CloudKit system fields/change tags. Record counts/checksums;
+   keep backups private and encrypted. Resolve duplicate local keys separately.
+2. Validate the additive schema with the commands above. Reconcile every legacy
+   row/account/receipt against evidence and Last.fm. Run the offline planner on
+   that complete reconciled snapshot. Review its index-only diff and paused gate.
+   Do not activate if any unresolved row, omitted page or uncertain outcome exists.
+3. In an isolated container first, save the paused, version-fenced gate with
+   `.ifServerRecordUnchanged`. Stage index additions in bounded batches below
+   CloudKit's operation limits, preserving all old links and records. Reread
+   **all** indices and play receipts, and compare counts, links and original
+   receipt checksums. A partial staging failure stays paused; resume staging
+   after re-export/review rather than erasing the gate or replaying HTTP calls.
+4. Re-export and revalidate the gate after staging. Only after two-client tests
+   and separate release authorization, CAS `privateMode=false` with incremented
+   generation/effective time, keeping version 2 and the versioned username.
+   Launch supported clients one at a time and verify an existing submitted play
+   stays submitted, new repeats remain distinct and one claim wins per play.
+5. To pause/roll back, CAS `privateMode=true`, increment generation and record
+   effective time. This blocks new claims, but an already owned HTTP attempt
+   may finish: settle it and retain its receipt. Keep clients quiesced, all
+   records/indices/backups and the versioned username. Never restore the bare
+   username, downgrade the gate, reconnect old clients or delete accepted plays.
+   Resume by rerunning the audit and step 4; no inverse data rewrite is needed.
+
+The isolated regression now executes this paused-plan → explicit resume → old
+receipt observed by a different catalog/device → repeated play accepted → pause
+sequence with two independent coordinator instances. Existing tests exercise
+simultaneous CAS claims, expired unknown attempts, stale tokens, account/privacy
+fences and receipt-write retry. This is protocol simulation, not two physical
+devices, live CloudKit transaction acceptance or real Last.fm submission.

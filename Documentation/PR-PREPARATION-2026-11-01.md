@@ -250,3 +250,37 @@ seconds. The regression now compares pre/post-operation **decoded** snapshots,
 as well as retaining the exact on-disk byte comparison and all expected-error
 assertions. This fixes the test baseline without changing ledger serialization
 or duplicate-ID handling. Simulator success on the corrected head awaits CI.
+
+## Release preparation follow-up from 71ec104 (November 4)
+
+- Added an actual macOS WidgetKit extension target to the workspace and release
+  package. Build unsigned, embed under `Contents/PlugIns`, sign extension before
+  host, retain host/Sparkle signature checks. Verify extension metadata, version,
+  sandbox, app group and signing team. Real signing requires explicit compatible
+  host/widget provisioning profiles; no developer-account configuration changed.
+- Redact widget track/artist/platform/progress before persisting Private Mode
+  snapshots, with regression coverage. Keep the existing shared suite.
+- Added an offline CloudKit compatibility-plan primitive with no network or
+  production call site, preserving receipts and system fields, preparing index
+  additions plus a paused fenced gate, rejecting unresolved records. Expanded
+  isolated two-client tests through activation/resume/repeat/pause. Added a
+  read-only exported-schema field checker and rejection tests, run in CI.
+- Validation: 152 Aura tests + 27 AuraCore tests + 1 XCTest = 180 passing Swift
+  tests; four Python script tests; credential scan, formatting and diff hygiene.
+  Actual widget extension built successfully. Ad-hoc packaged app and extension
+  passed deep/strict signatures and package checks, including isolated preview
+  sync to `/tmp/aura-release-preparation/Aura.app`; installed app untouched.
+  Current iOS test products build unsigned via XcodeBuildMCP. This is explicitly
+  **not a simulator test pass**. Baseline 71ec104 had successful actual simulator
+  tests in CI; new-head CI must execute them again. Local simulator execution
+  remains affected by the previously documented runner/XPC issue.
+- Read-only access diagnosis: `cktool` installed, `get-teams` reports no management
+  token; no compatible local provisioning profiles or Developer ID identity.
+  Therefore live schema/export compatibility, real app-group/gallery acceptance
+  and physical two-device CloudKit/Last.fm acceptance remain unverified. No live
+  records, schema, auth settings or production configuration were changed.
+- Keep draft. See WIDGET.md for provisioning/hardware acceptance and
+  CLOUD-IDENTITY-V2.md for exact read-only checks, staging, CAS activation,
+  pause/resume and the prohibition on reverting the old-client fence. The
+  independent Mac scrobble queue still does not participate in companion cloud
+  deduplication; do not claim whole-product exactly-once delivery.
