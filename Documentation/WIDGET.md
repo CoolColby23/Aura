@@ -24,7 +24,12 @@ For provisioned packaging, supply all three explicitly:
 - `AURA_WIDGET_PROVISIONING_PROFILE`: profile for `fm.aura.Aura.Widget`.
 
 The profiles must be unexpired, authorize the same team and exact App IDs, and
-contain `group.fm.aura.Aura`. Packaging validates and embeds these profiles;
+contain `group.fm.aura.Aura`. Both profiles must also list the chosen signing
+certificate in `DeveloperCertificates`; renewing a certificate requires refreshed
+profiles. Packaging checks the selected identity fingerprint before signing,
+then extracts the actual leaf certificates from both signatures and checks
+each against its embedded profile. Standalone package verification repeats
+those checks for provisioned artifacts. Packaging validates and embeds profiles;
 it never registers IDs, installs profiles or changes developer configuration.
 The host retains its existing automation entitlement and sandbox policy. Only
 the extension is sandboxed. Real signing fails closed when profiles are absent.

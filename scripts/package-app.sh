@@ -90,10 +90,9 @@ if [[ "${AURA_SKIP_SIGNING:-0}" != "1" ]]; then
     # Never silently ship a signed host with an unusable widget.
     : "${AURA_HOST_PROVISIONING_PROFILE:?Set matching host and widget provisioning profiles, or use AURA_SIGNING_IDENTITY=- for isolated package checks}"
     : "${AURA_WIDGET_PROVISIONING_PROFILE:?Set matching widget provisioning profile}"
-    python3 "$ROOT/scripts/verify-widget-profiles.py" "$AURA_HOST_PROVISIONING_PROFILE" "$AURA_WIDGET_PROVISIONING_PROFILE"
+    TEAM_IDENTIFIER="$(python3 "$ROOT/scripts/verify-widget-profiles.py" "$AURA_HOST_PROVISIONING_PROFILE" "$AURA_WIDGET_PROVISIONING_PROFILE" --identity "$SIGNING_IDENTITY")"
     cp "$AURA_HOST_PROVISIONING_PROFILE" "$CONTENTS/embedded.provisionprofile"
     cp "$AURA_WIDGET_PROVISIONING_PROFILE" "$CONTENTS/PlugIns/AuraWidget.appex/Contents/embedded.provisionprofile"
-    TEAM_IDENTIFIER="$(python3 "$ROOT/scripts/verify-widget-profiles.py" "$AURA_HOST_PROVISIONING_PROFILE" "$AURA_WIDGET_PROVISIONING_PROFILE")"
     if [[ -n "$TEAM_IDENTIFIER" && "${AURA_ENABLE_ICLOUD_SYNC:-0}" == "1" ]]; then
       /usr/libexec/PlistBuddy -c \
         "Set :com.apple.developer.ubiquity-kvstore-identifier $TEAM_IDENTIFIER.fm.aura.Aura" \
@@ -111,7 +110,7 @@ if [[ "${AURA_SKIP_SIGNING:-0}" != "1" ]]; then
       --sign "$SIGNING_IDENTITY" "$APP"
     codesign --verify --deep --strict --verbose=2 "$APP"
     ACTUAL_TEAM="$(codesign -dv "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
-    python3 "$ROOT/scripts/verify-widget-profiles.py" "$AURA_HOST_PROVISIONING_PROFILE" "$AURA_WIDGET_PROVISIONING_PROFILE" "$ACTUAL_TEAM"
+    python3 "$ROOT/scripts/verify-widget-profiles.py" "$AURA_HOST_PROVISIONING_PROFILE" "$AURA_WIDGET_PROVISIONING_PROFILE" --app "$APP" --team "$ACTUAL_TEAM"
     echo "Signed with $SIGNING_IDENTITY"
   fi
   rm -f "$ENTITLEMENTS_FILE"

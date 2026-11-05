@@ -35,6 +35,12 @@ try:
         output = subprocess.check_output(['codesign', '-dv', str(path)], stderr=subprocess.STDOUT).decode()
         return next(line for line in output.splitlines() if line.startswith('TeamIdentifier='))
     require(team(app) == team(widget), 'signing teams differ')
+    actual_team = team(app).removeprefix('TeamIdentifier=')
+    if actual_team != 'not set':
+        subprocess.run([sys.executable, str(pathlib.Path(__file__).with_name('verify-widget-profiles.py')),
+                        str(app / 'Contents/embedded.provisionprofile'),
+                        str(widget / 'Contents/embedded.provisionprofile'),
+                        '--app', str(app), '--team', actual_team], check=True)
 except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
     sys.exit('Widget package verification failed: ' + str(error))
 print('Verified embedded widget metadata, sandbox, shared group and signatures; gallery acceptance requires provisioned hardware')

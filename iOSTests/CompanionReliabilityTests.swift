@@ -64,11 +64,67 @@ final class CompanionReliabilityTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: url), original)
         let preserved = await store.current()
         XCTAssertEqual(preserved.listens, loaded.listens)
+        let unrelated = PlaybackEvidence(
+            deviceID: UUID(), sourceTrackID: "unrelated", metadata: .init(title: "Unrelated track", artist: "Artist", startedAt: start),
+            observedPlayTime: 120, origin: .observed, confidence: .strong)
+        do { try await store.ingest([unrelated, evidence]); XCTFail("Partly committed ambiguous batch") } catch CompanionStoreError.ambiguousListenID {}
+        let rolledBack = await store.current()
+        XCTAssertEqual(rolledBack.listens, loaded.listens)
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        do { try await store.correct(id: one.id, title: "Wrong", artist: "Wrong", album: nil); XCTFail("Corrected an ambiguous key") } catch CompanionStoreError
+            .ambiguousListenID
+        {}
+        _ = try await store.ingest(unrelated)
+        let withUnrelated = await store.current()
+        XCTAssertEqual(Array(withUnrelated.listens.prefix(2)), loaded.listens)
+        XCTAssertEqual(withUnrelated.listens.count, 3)
     }
 
     override func setUp() {
         super.setUp()
         CompanionURLProtocol.reset()
+    }
+
+    func testSubmissionRetryPolicyKeepsUnknownOutcomesFenced() {
+        for code in [URLError.Code.cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet] {
+            XCTAssertTrue(CompanionSubmissionRetryPolicy.isSafeToRetry(URLError(code)))
+        }
+        for code in [URLError.Code.timedOut, .networkConnectionLost, .cancelled, .badServerResponse, .secureConnectionFailed] {
+            XCTAssertFalse(CompanionSubmissionRetryPolicy.isSafeToRetry(URLError(code)))
+        }
+        XCTAssertTrue(CompanionSubmissionRetryPolicy.isSafeToRetry(CancellationError()))
+        XCTAssertTrue(CompanionSubmissionRetryPolicy.isSafeToRetry(CompanionLastFMError.retryLater("Busy", after: 30)))
+        XCTAssertFalse(CompanionSubmissionRetryPolicy.isSafeToRetry(CompanionLastFMError.invalidResponse))
+    }
+
+    func testScrobbleTaskDoesNotFollowRedirectToAnotherConnection() {
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        let url = URL(string: "https://ws.audioscrobbler.com/2.0/")!
+        let task = session.dataTask(with: url)  // Never resumed: no network I/O.
+        let completion = expectation(description: "Redirect refused")
+        CompanionLastFMTaskDelegate().urlSession(
+            session, task: task,
+            willPerformHTTPRedirection: HTTPURLResponse(url: url, statusCode: 307, httpVersion: nil, headerFields: nil)!,
+            newRequest: URLRequest(url: URL(string: "https://unreachable.invalid/")!)
+        ) { request in
+            XCTAssertNil(request)
+            completion.fulfill()
+        }
+        wait(for: [completion], timeout: 1)
+    }
+
+    func testConnectionFailureReachesRetryPolicyWithoutBecomingAcceptance() async throws {
+        CompanionURLProtocol.handler = { _ in throw URLError(.cannotFindHost) }
+        let keychain = CompanionKeychain(inMemoryValues: [:])
+        try await keychain.setSession("session", username: "listener")
+        do {
+            try await makeClient(keychain: keychain).scrobble(.init(title: "Track", artist: "Artist", startedAt: .now), expectedUsername: "listener")
+            XCTFail("Failed connection was accepted")
+        } catch {
+            XCTAssertTrue(CompanionSubmissionRetryPolicy.isSafeToRetry(error))
+        }
+        XCTAssertEqual(CompanionURLProtocol.requestCount, 1)
     }
 
     func testRateLimitIsDefiniteRetryWithFiniteDelay() async throws {

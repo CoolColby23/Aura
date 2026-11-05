@@ -284,3 +284,32 @@ or duplicate-ID handling. Simulator success on the corrected head awaits CI.
   pause/resume and the prohibition on reverting the old-client fence. The
   independent Mac scrobble queue still does not participate in companion cloud
   deduplication; do not claim whole-product exactly-once delivery.
+
+### Follow-up to review 5778060393
+
+- Added signing-certificate authorization against each profile's
+  DeveloperCertificates, both for the chosen identity before signing and the
+  actual extracted host/widget leaf certificates afterward. Standalone package
+  verification checks provisioned artifacts too. Renewed/missing certificate
+  fixtures are rejected; existing entitlement/team/expiry checks remain.
+- Restricted duplicate-ID ingestion refusal to evidence that could affect a
+  collision. Unrelated capture continues; an affected batch rolls back fully in
+  memory and on disk. Corrections now reject ambiguous IDs too. No local IDs or
+  receipts are automatically renamed/discarded. Recovery remains the explicit
+  backed-up compatibility procedure, not the normal Reconcile action.
+- Companion retry classification now releases definite connection-establishment
+  failures while preserving unknown outcomes for timeouts, lost connections,
+  URLSession cancellation and malformed responses. API requests refuse redirects
+  so a connection error at a redirected endpoint cannot justify retrying the
+  original POST. Added error classification, mocked transport, redirect refusal
+  and atomic-ingestion regression checks.
+- Documented implicit NUMBER field review and separately approved schema typing;
+  unqualified NUMBER remains rejected, with a regression assertion.
+- Validation: four Python script tests passed; thirteen companion XCTest cases
+  passed in a temporary macOS harness using the actual store/client/keychain
+  source (only unused iOS framework imports omitted; MusicKit-only cases excluded).
+  This is host execution, not iOS Simulator execution or live-service acceptance.
+  Unsigned iOS test products built successfully. Ad-hoc package verification and
+  isolated sync passed under /tmp; installed app unchanged. Formatting, secret
+  scan and patch hygiene passed. Baseline 3b5ddfa's repository hygiene/actual iOS
+  simulator and package CI passed; the new head must run CI again.

@@ -516,18 +516,9 @@ final class CompanionAppModel {
             } catch {
                 let delay = (error as? CompanionLastFMError)?.retryDelay ?? 30
                 submissionNotBefore[listen.id] = Date().addingTimeInterval(delay)
-                // Only a definite server refusal is safe to retry. A timeout
-                // may mean Last.fm accepted the request but lost the response.
-                let safeToRetry: Bool
-                switch error {
-                case is CancellationError: safeToRetry = true  // Rate-slot sleep; URLSession cancellation uses URLError.
-                case let failure as CompanionLastFMError:
-                    switch failure {
-                    case .retryLater, .accountChanged, .configuration: safeToRetry = true
-                    default: safeToRetry = false
-                    }
-                default: safeToRetry = false
-                }
+                // Only definite refusals and connection-establishment failures
+                // can release the lease; timeouts/lost responses remain uncertain.
+                let safeToRetry = CompanionSubmissionRetryPolicy.isSafeToRetry(error)
                 if safeToRetry {
                     try? await cloud.complete(lease, result: .deferred("Last.fm deferred this submission."))
                     try await store.setState(.queued, for: listen.id)

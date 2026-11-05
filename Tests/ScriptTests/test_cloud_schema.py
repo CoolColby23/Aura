@@ -13,6 +13,8 @@ class SchemaRequirementsTests(unittest.TestCase):
     def test_complete_export_and_implicit_number(self):
         schema.verify(fixture())
         schema.verify(fixture().replace('generation INT64', 'generation NUMBER PREFERRED AS INT64'))
+        with self.assertRaises(ValueError):
+            schema.verify(fixture().replace('generation INT64', 'generation NUMBER'))
 
     def test_missing_wrong_or_comment_only_field_fails(self):
         for replacement in ['listenIDs STRING', '/* listenIDs LIST<STRING> */', 'unrelated LIST<STRING>']:

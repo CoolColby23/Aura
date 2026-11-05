@@ -23,8 +23,10 @@ the independent Mac queue participates in cross-device CloudKit deduplication.
   bounded to half the shorter known track duration for short-track repeats;
   multiple candidates require review rather than choosing the first source-ID
   match. Two existing rows with one legacy key cannot be updated individually:
-  passive single/batch evidence ingestion and submission are blocked before
-  selecting a row. Back up duplicate-ID ledgers before running any new client;
+  passive single/batch evidence ingestion that could touch those colliding rows
+  and submission of those rows are blocked before selecting a row. Unrelated
+  evidence can still be ingested; a batch containing a collision rolls back
+  every staged change. Metadata corrections also reject ambiguous IDs. Back up duplicate-ID ledgers before running any new client;
   reconcile them separately rather than relying on an ID-only merge. No repair
   or migration is performed by capture.
 - Cloud lookup is separate from local IDs. Three metadata/time indices (the
@@ -121,6 +123,15 @@ and export the **existing** schema, retaining every existing type, field, index
 and permission. The requirements checker is deliberately not an importable
 replacement schema. It cannot prove private-zone ownership or record contents.
 
+An implicitly created numeric field may export as unqualified `NUMBER`. The
+checker deliberately rejects it because the export does not establish whether
+it is intended as `INT64` or `DOUBLE`. Review the field's intended semantics and
+existing values, prepare a separate schema change using `NUMBER PREFERRED AS
+INT64` or `NUMBER PREFERRED AS DOUBLE` as appropriate, obtain approval, validate
+it in the isolated development container, then re-export and rerun this checker.
+Do not silently infer a type, edit a production schema, or use this checker to
+apply that change. Existing preferred types must not be changed.
+
 With an already configured management token in the keychain/environment:
 
 ```sh
@@ -185,3 +196,17 @@ sequence with two independent coordinator instances. Existing tests exercise
 simultaneous CAS claims, expired unknown attempts, stale tokens, account/privacy
 fences and receipt-write retry. This is protocol simulation, not two physical
 devices, live CloudKit transaction acceptance or real Last.fm submission.
+
+### Legacy local collision recovery remains explicit
+
+A collision no longer disables unrelated capture. A batch that includes an
+affected play remains atomic and does not advance its reconciliation cursor.
+Approve, dismiss and correction by a duplicated ID stay blocked: those actions
+cannot distinguish which row owns an existing cloud receipt. No in-app rename or
+mass dismissal is introduced as an implicit repair. Stop affected clients, back
+up their full ledgers, and follow the complete receipt/evidence audit and staged
+compatibility procedure above with a maintainer. An individually reviewed local
+repair must preserve original IDs/evidence/receipts in the backup and establish
+the mapping to cloud records before any retry. Unknown outcomes remain fenced.
+This PR deliberately does not execute that data migration or claim the ordinary
+Reconcile action repairs legacy collisions.

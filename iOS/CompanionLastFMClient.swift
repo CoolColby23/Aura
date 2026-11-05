@@ -32,6 +32,34 @@ enum CompanionLastFMError: LocalizedError {
     }
 }
 
+enum CompanionSubmissionRetryPolicy {
+    static func isSafeToRetry(_ error: any Error) -> Bool {
+        switch error {
+        case is CancellationError: true  // Only rate-slot sleep; URLSession uses URLError.cancelled.
+        case let failure as CompanionLastFMError:
+            switch failure {
+            case .retryLater, .accountChanged, .configuration: true
+            default: false
+            }
+        case let failure as URLError:
+            [.cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet].contains(failure.code)
+        default: false
+        }
+    }
+}
+
+/// A failed connection to a redirected endpoint would not prove that the
+/// original POST was unsent. The API endpoint is fixed; refuse redirects so
+/// the narrow connection-failure retry policy applies to the original request.
+final class CompanionLastFMTaskDelegate: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(
+        _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(nil)
+    }
+}
+
 struct CompanionLastFMTrack: Identifiable, Hashable, Sendable {
     let title: String
     let artist: String
@@ -215,7 +243,7 @@ actor CompanionLastFMClient {
         request.httpMethod = "POST"; request.timeoutInterval = 20
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = LastFMRequestBuilder.body(values)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request, delegate: CompanionLastFMTaskDelegate())
         guard let http = response as? HTTPURLResponse else { throw CompanionLastFMError.invalidResponse }
         if http.statusCode == 429 {
             let rawDelay = TimeInterval(http.value(forHTTPHeaderField: "Retry-After") ?? "") ?? 30
