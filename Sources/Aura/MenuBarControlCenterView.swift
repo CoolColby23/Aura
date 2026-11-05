@@ -2,296 +2,144 @@ import AppKit
 import SwiftData
 import SwiftUI
 
+/// The menu-bar panel. It borrows Control Center's grammar — modules on the
+/// system material, round toggles that fill when on — so it reads as part of
+/// the Mac rather than a miniature copy of the dashboard.
 struct MenuBarControlCenterView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openWindow) private var openWindow
     @Environment(\.appTheme) private var theme
-    @State private var seekPosition: TimeInterval = 0
-    @State private var isSeeking = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         @Bindable var preferences = model.preferences
-        VStack(spacing: 0) {
+        VStack(spacing: BrandSpacing.sm) {
             header
-                .padding(.horizontal, BrandSpacing.md)
-                .padding(.vertical, BrandMetrics.cardPaddingCompact)
-
-            ScrollView {
-                VStack(spacing: BrandMetrics.gridSpacing) {
-                    nowPlayingHero
-                    if preferences.menuBarExpanded {
-                        serviceGrid(preferences: preferences)
-                        MenuBarWeeklyRecapView()
-                    } else {
-                        compactServiceStatus
-                    }
-                }
-                .padding(BrandSpacing.md)
+            MenuBarNowPlayingModule()
+            HStack(spacing: BrandSpacing.sm) {
+                MenuModuleTile(
+                    name: "Discord",
+                    symbol: "bubble.left.and.bubble.right.fill",
+                    detail: model.isPrivate && preferences.discordEnabled ? "Paused" : model.discordStatus.presentationLabel,
+                    isOn: Binding(get: { preferences.discordEnabled }, set: { model.setDiscordEnabled($0) })
+                )
+                MenuModuleTile(
+                    name: "Last.fm",
+                    symbol: "dot.radiowaves.left.and.right",
+                    detail: model.isPrivate && preferences.lastFMEnabled ? "Paused" : model.lastFMStatus.presentationLabel,
+                    isOn: Binding(get: { preferences.lastFMEnabled }, set: { model.setLastFMEnabled($0) })
+                )
             }
-            .scrollIndicators(.hidden)
-
+            privateModeModule
+            if preferences.menuBarExpanded {
+                MenuBarWeeklyRecapView()
+            }
             footer
         }
-        .frame(width: 410, height: preferences.menuBarExpanded ? 590 : 430)
-        .auraPanelBackground()
+        .padding(BrandSpacing.sm)
+        .frame(width: 340)
+        .fixedSize(horizontal: false, vertical: true)
         .task { model.start() }
-        .onChange(of: model.snapshot.position) { _, position in
-            if !isSeeking { seekPosition = position }
-        }
     }
 
     private var header: some View {
-        HStack(spacing: BrandMetrics.cardPaddingCompact) {
-            SweepingBrandMark(isPlaying: model.snapshot.state == .playing)
-                .frame(width: BrandMetrics.tileSmall, height: BrandMetrics.tileSmall)
-            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                Text("Aura")
-                    .font(.headline)
-                Text(model.snapshot.state == .playing ? "Listening now" : "Ready in the background")
-                    .font(.caption2)
+        HStack(spacing: BrandSpacing.sm) {
+            SweepingBrandMark(isPlaying: model.snapshot.state == .playing && !model.isPrivate)
+                .frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Aura").font(.headline)
+                Text(statusLine)
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Spacer()
             Button {
-                model.preferences.menuBarExpanded.toggle()
+                withAnimation(.easeInOut(duration: 0.2)) { model.preferences.menuBarExpanded.toggle() }
             } label: {
-                Image(systemName: model.preferences.menuBarExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                    .frame(width: BrandMetrics.tileSmall, height: BrandMetrics.tileSmall)
+                Image(systemName: model.preferences.menuBarExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.bold))
+                    .frame(width: 24, height: 24)
+                    .contentShape(.circle)
             }
             .buttonStyle(.plain)
-            .help(model.preferences.menuBarExpanded ? "Use Compact Menu" : "Use Expanded Menu")
-            .accessibilityLabel(model.preferences.menuBarExpanded ? "Use compact menu" : "Use expanded menu")
-            privacyMenu
-        }
-    }
-
-    private var privacyMenu: some View {
-        Menu {
-            if model.isPrivate {
-                Button("Resume Sharing", systemImage: "eye") { model.endPrivateMode() }
-            } else {
-                Button("Private for 15 Minutes") { model.setPrivate(until: .now.addingTimeInterval(900)) }
-                Button("Private for 1 Hour") { model.setPrivate(until: .now.addingTimeInterval(3_600)) }
-                Button("Private Until Resumed") { model.setPrivate(until: nil) }
-            }
-        } label: {
-            Label(model.isPrivate ? "Private" : "Sharing", systemImage: model.isPrivate ? "eye.slash.fill" : "antenna.radiowaves.left.and.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(model.isPrivate ? BrandColors.warning : theme.primaryColor)
-                .padding(.horizontal, BrandMetrics.capsuleHorizontal)
-                .padding(.vertical, BrandMetrics.capsuleVertical)
-                .background((model.isPrivate ? BrandColors.warning : theme.primaryColor).opacity(0.12), in: .capsule)
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .accessibilityLabel(model.isPrivate ? "Private Mode active" : "Sharing controls")
-    }
-
-    private var nowPlayingHero: some View {
-        ZStack {
-            heroBackdrop
-            VStack(spacing: BrandMetrics.gridSpacing) {
-                HStack(spacing: BrandSpacing.md) {
-                    ArtworkView(image: model.artworkImage, size: 104, isPlaying: model.snapshot.state == .playing)
-                    VStack(alignment: .leading, spacing: BrandSpacing.xs) {
-                        Text(playbackEyebrow)
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(theme.secondaryColor)
-                            .textCase(.uppercase)
-                        Text(model.snapshot.track?.title ?? "Nothing Playing")
-                            .font(.title3.bold())
-                            .lineLimit(2)
-                        Text(model.snapshot.track?.artist ?? "Start music in a supported player")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                        if let album = model.snapshot.track?.album, !album.isEmpty {
-                            Text(album)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
-
-                if let track = model.snapshot.track, track.supportsFiniteProgress {
-                    if model.canControlPlayback {
-                        seekControl(duration: track.duration)
-                    } else {
-                        PlaybackProgress(snapshot: model.snapshot, duration: track.duration)
-                    }
-                }
-
-                if model.canControlPlayback {
-                    playbackControls
-                } else if model.snapshot.track == nil {
-                    Button("Open Dashboard", systemImage: "rectangle.on.rectangle") {
-                        NSApp.showDashboard(using: openWindow)
-                    }
-                    .auraButton(prominent: true)
-                }
-            }
-            .padding(BrandSpacing.md)
-        }
-        .clipShape(.rect(cornerRadius: BrandRadius.xl, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: BrandRadius.xl, style: .continuous)
-                .strokeBorder(theme.secondaryColor.opacity(0.18), lineWidth: 1)
-        }
-        .shadow(color: theme.primaryColor.opacity(0.16), radius: 22, y: 10)
-        .environment(\.colorScheme, .dark)
-    }
-
-    private var heroBackdrop: some View {
-        ZStack {
-            if let image = model.artworkImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .blur(radius: 42)
-                    .scaleEffect(1.25)
-                    .opacity(0.26)
-            }
-            LinearGradient(
-                colors: [theme.darkBackground.opacity(0.96), theme.primaryColor.opacity(0.28), theme.darkBackground.opacity(0.92)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-    }
-
-    private var playbackControls: some View {
-        HStack(spacing: BrandSpacing.md) {
-            volumeButton(amount: -10, symbol: "speaker.minus.fill", label: "Lower Volume")
-            playbackButton(.previous)
-            Button {
-                model.performPlaybackControl(.toggle)
-            } label: {
-                Image(systemName: model.snapshot.state == .playing ? "pause.fill" : "play.fill")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
-                    .background(theme.accentGradient, in: .circle)
-                    .shadow(color: theme.primaryColor.opacity(0.35), radius: 10, y: 5)
-            }
-            .buttonStyle(.plain)
-            .help(model.snapshot.state == .playing ? "Pause" : "Play")
-            playbackButton(.next)
-            volumeButton(amount: 10, symbol: "speaker.plus.fill", label: "Raise Volume")
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private func volumeButton(amount: Int, symbol: String, label: String) -> some View {
-        Button {
-            model.adjustPlaybackVolume(by: amount)
-        } label: {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .frame(width: 30, height: 30)
-        }
-        .buttonStyle(.plain)
-        .help(label)
-        .accessibilityLabel(label)
-    }
-
-    private func seekControl(duration: TimeInterval) -> some View {
-        VStack(spacing: BrandSpacing.xs) {
-            Slider(value: $seekPosition, in: 0...max(duration, 1)) { editing in
-                isSeeking = editing
-                if !editing { model.seekPlayback(to: seekPosition) }
-            }
-            .tint(theme.primaryColor)
-            .accessibilityLabel("Playback position")
-            .accessibilityValue("\(Int(seekPosition)) seconds of \(Int(duration)) seconds")
-            HStack {
-                Text(durationLabel(seekPosition))
-                Spacer()
-                Text("−\(durationLabel(max(0, duration - seekPosition)))")
-            }
-            .font(.caption2.monospacedDigit())
             .foregroundStyle(.secondary)
+            .help(model.preferences.menuBarExpanded ? "Show less" : "Show this week’s recap")
+            .accessibilityLabel(model.preferences.menuBarExpanded ? "Use compact menu" : "Use expanded menu")
+        }
+        .padding(.horizontal, BrandSpacing.xs)
+        .padding(.top, 2)
+    }
+
+    private var statusLine: String {
+        if model.isPrivate { return "Private — nothing is shared" }
+        switch model.snapshot.state {
+        case .playing: return "Listening on \(model.snapshot.track?.platform.rawValue ?? "your Mac")"
+        case .paused: return "Paused"
+        case .stopped: return "Watching for music"
         }
     }
 
-    private func durationLabel(_ value: TimeInterval) -> String {
-        let seconds = max(0, Int(value.rounded()))
-        return "\(seconds / 60):\(String(format: "%02d", seconds % 60))"
-    }
-
-    private func playbackButton(_ command: PlaybackControlCommand) -> some View {
-        Button {
-            model.performPlaybackControl(command)
-        } label: {
-            Image(systemName: command.symbol)
-                .font(.system(size: 14, weight: .semibold))
-                .frame(width: 34, height: 34)
-                .background(.white.opacity(0.08), in: .circle)
-        }
-        .buttonStyle(.plain)
-        .help(command == .previous ? "Previous Track" : "Next Track")
-    }
-
-    private func serviceGrid(preferences: Preferences) -> some View {
-        HStack(spacing: BrandMetrics.cardPaddingCompact) {
-            MenuBarServiceTile(
-                name: "Discord",
-                symbol: "bubble.left.and.bubble.right.fill",
-                status: model.discordStatus,
-                isEnabled: Binding(
-                    get: { preferences.discordEnabled },
-                    set: { model.setDiscordEnabled($0) }
-                )
-            )
-            MenuBarServiceTile(
-                name: "Last.fm",
-                symbol: "dot.radiowaves.left.and.right",
-                status: model.lastFMStatus,
-                isEnabled: Binding(
-                    get: { preferences.lastFMEnabled },
-                    set: { model.setLastFMEnabled($0) }
-                )
-            )
-        }
-    }
-
-    private var compactServiceStatus: some View {
-        HStack(spacing: BrandMetrics.cardPaddingCompact) {
-            compactStatus("Discord", model.discordStatus)
-            Divider().frame(height: 22)
-            compactStatus("Last.fm", model.lastFMStatus)
+    private var privateModeModule: some View {
+        HStack(spacing: BrandMetrics.cardContentSpacing) {
+            ModuleToggleCircle(
+                symbol: model.isPrivate ? "eye.slash.fill" : "eye.slash",
+                isOn: model.isPrivate,
+                tint: BrandColors.warning
+            ) {
+                model.isPrivate ? model.endPrivateMode() : model.setPrivate(until: nil)
+            }
+            .accessibilityLabel(model.isPrivate ? "End Private Mode" : "Go Private until resumed")
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Private Mode").font(.callout.weight(.semibold))
+                Text(privateDetail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            if !model.isPrivate {
+                Menu {
+                    Button("For 15 Minutes") { model.setPrivate(until: .now.addingTimeInterval(900)) }
+                    Button("For 1 Hour") { model.setPrivate(until: .now.addingTimeInterval(3_600)) }
+                    Button("Until Resumed") { model.setPrivate(until: nil) }
+                } label: {
+                    Image(systemName: "clock")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .foregroundStyle(.secondary)
+                .help("Go private for a while")
+                .accessibilityLabel("Go private for a set time")
+            }
         }
         .padding(BrandMetrics.cardPaddingCompact)
-        .auraCard()
+        .auraSurface(.inset, radius: BrandRadius.md)
     }
 
-    private func compactStatus(_ name: String, _ status: ServiceStatus) -> some View {
-        HStack(spacing: BrandSpacing.xs) {
-            Circle().fill(menuStatusColor(status)).frame(width: BrandMetrics.statusDot, height: BrandMetrics.statusDot)
-            Text(name).font(.caption.weight(.semibold))
-            Text(status.presentationLabel).font(.caption2).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func menuStatusColor(_ status: ServiceStatus) -> Color {
-        status.tintColor
+    private var privateDetail: String {
+        guard model.isPrivate else { return "Pause sharing for a while" }
+        if let until = model.privateUntil { return "On until \(until.formatted(date: .omitted, time: .shortened))" }
+        return "On until you resume"
     }
 
     private var footer: some View {
-        HStack(spacing: BrandSpacing.sm) {
-            Button("Dashboard", systemImage: "rectangle.grid.2x2") {
+        HStack(spacing: BrandSpacing.xs) {
+            Button {
                 NSApp.showDashboard(using: openWindow)
+            } label: {
+                Label("Open Aura", systemImage: "macwindow")
+                    .frame(maxWidth: .infinity)
             }
             .accessibilityIdentifier("menu.dashboard")
             SettingsLink {
                 Label("Settings", systemImage: "gearshape")
+                    .labelStyle(.iconOnly)
             }
+            .help("Settings")
             .accessibilityIdentifier("menu.settings")
-            Spacer()
-            Button("Quit", systemImage: "power") {
+            Button("Quit Aura", systemImage: "power") {
                 model.shutdown()
                 NSApp.terminate(nil)
             }
@@ -299,71 +147,171 @@ struct MenuBarControlCenterView: View {
             .help("Quit Aura")
         }
         .auraButton()
+        .controlSize(.large)
+    }
+}
+
+private struct MenuBarNowPlayingModule: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.appTheme) private var theme
+    @State private var seekPosition: TimeInterval = 0
+    @State private var isSeeking = false
+
+    var body: some View {
+        let isPlaying = model.snapshot.state == .playing
+        VStack(spacing: BrandMetrics.cardContentSpacing) {
+            HStack(spacing: BrandMetrics.cardContentSpacing) {
+                ArtworkAura(cornerRadius: 60 * ArtworkView.cornerRatio, isPlaying: isPlaying) {
+                    ArtworkView(image: model.artworkImage, size: 60, isPlaying: isPlaying)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    if let track = model.snapshot.track {
+                        Text(track.title)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text([track.artist, track.album].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        HStack(spacing: 5) {
+                            StatusDot(tint: isPlaying ? BrandColors.blush : BrandColors.neutral, size: 6)
+                            Text(isPlaying ? track.platform.rawValue : "Paused")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .padding(.top, 2)
+                    } else {
+                        Text("Nothing playing").font(.headline)
+                        Text("Start a song in a supported app.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+
+            if let track = model.snapshot.track, track.supportsFiniteProgress {
+                if model.canControlPlayback {
+                    seekControl(duration: track.duration)
+                } else {
+                    PlaybackProgress(snapshot: model.snapshot, duration: track.duration)
+                }
+            }
+
+            if model.canControlPlayback {
+                transport
+            }
+        }
         .padding(BrandMetrics.cardPaddingCompact)
-        .background(.ultraThinMaterial)
+        .auraSurface(.inset, radius: BrandRadius.md)
+        .onChange(of: model.snapshot.position) { _, position in
+            if !isSeeking { seekPosition = position }
+        }
+        .onAppear { seekPosition = model.snapshot.position }
     }
 
-    private var playbackEyebrow: String {
-        switch model.snapshot.state {
-        case .playing: model.snapshot.track?.platform.rawValue ?? "Now Playing"
-        case .paused: "Paused"
-        case .stopped: "Aura is ready"
+    private var transport: some View {
+        HStack(spacing: 0) {
+            iconButton("speaker.minus.fill", label: "Lower Volume", size: 12) { model.adjustPlaybackVolume(by: -10) }
+            Spacer()
+            TransportButton(title: "Previous Track", symbol: "backward.fill", diameter: 34) {
+                model.performPlaybackControl(.previous)
+            }
+            Spacer()
+            TransportButton(
+                title: model.snapshot.state == .playing ? "Pause" : "Play",
+                symbol: model.snapshot.state == .playing ? "pause.fill" : "play.fill",
+                diameter: 44,
+                prominent: true
+            ) {
+                model.performPlaybackControl(.toggle)
+            }
+            Spacer()
+            TransportButton(title: "Next Track", symbol: "forward.fill", diameter: 34) {
+                model.performPlaybackControl(.next)
+            }
+            Spacer()
+            iconButton("speaker.plus.fill", label: "Raise Volume", size: 12) { model.adjustPlaybackVolume(by: 10) }
+        }
+        .padding(.horizontal, BrandSpacing.xs)
+    }
+
+    private func iconButton(_ symbol: String, label: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: size, weight: .semibold))
+                .frame(width: 32, height: 32)
+                .contentShape(.circle)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.primary.opacity(0.8))
+        .help(label)
+        .accessibilityLabel(label)
+    }
+
+    private func seekControl(duration: TimeInterval) -> some View {
+        VStack(spacing: 2) {
+            Slider(value: $seekPosition, in: 0...max(duration, 1)) { editing in
+                isSeeking = editing
+                if !editing { model.seekPlayback(to: seekPosition) }
+            }
+            .controlSize(.small)
+            .tint(theme.primaryColor)
+            .accessibilityLabel("Playback position")
+            .accessibilityValue("\(Int(seekPosition)) seconds of \(Int(duration)) seconds")
+            HStack {
+                Text(seekPosition.formattedDuration)
+                Spacer()
+                Text("−\(max(0, duration - seekPosition).formattedDuration)")
+            }
+            .font(.caption2.monospacedDigit())
+            .foregroundStyle(.secondary)
         }
     }
 }
 
-private struct MenuBarServiceTile: View {
+private struct MenuModuleTile: View {
     let name: String
     let symbol: String
-    let status: ServiceStatus
-    @Binding var isEnabled: Bool
-    @Environment(\.appTheme) private var theme
+    let detail: String
+    @Binding var isOn: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: BrandMetrics.cardPaddingCompact) {
-            HStack {
-                Image(systemName: symbol)
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(theme.primaryColor)
-                    .frame(width: BrandMetrics.tileSmall, height: BrandMetrics.tileSmall)
-                    .background(theme.primaryColor.opacity(0.12), in: .rect(cornerRadius: BrandRadius.tile(BrandMetrics.tileSmall), style: .continuous))
-                Spacer()
-                Toggle(name, isOn: $isEnabled)
-                    .labelsHidden()
-                    .controlSize(.small)
-            }
-            Text(name)
-                .font(.callout.weight(.semibold))
-            HStack(spacing: BrandSpacing.xs) {
-                Circle().fill(statusColor).frame(width: BrandMetrics.statusDot, height: BrandMetrics.statusDot)
-                Text(status.presentationLabel)
-                    .font(.caption2)
+        HStack(spacing: BrandSpacing.sm) {
+            ModuleToggleCircle(symbol: symbol, isOn: isOn) { isOn.toggle() }
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(name).font(.callout.weight(.semibold))
+                Text(isOn ? detail : "Off")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
+            Spacer(minLength: 0)
         }
         .padding(BrandMetrics.cardPaddingCompact)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .auraCard()
-        .accessibilityElement(children: .contain)
-    }
-
-    private var statusColor: Color {
-        status.tintColor
+        .auraSurface(.inset, radius: BrandRadius.md)
+        .contentShape(.rect)
+        .onTapGesture { isOn.toggle() }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(name)
+        .accessibilityValue(isOn ? detail : "Off")
+        .accessibilityAddTraits(.isToggle)
+        .accessibilityAction { isOn.toggle() }
     }
 }
 
 private struct MenuBarWeeklyRecapView: View {
     @Query(sort: \ActivityRecord.startedAt, order: .reverse) private var records: [ActivityRecord]
-    @Environment(\.appTheme) private var theme
 
     var body: some View {
         let recap = WeeklyListeningRecap(records: records)
-        VStack(alignment: .leading, spacing: BrandMetrics.cardPaddingCompact) {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
             HStack {
-                Label("This Week", systemImage: "sparkles")
-                    .font(.callout.weight(.semibold))
-                    .foregroundStyle(theme.primaryColor)
+                Text("This week")
+                    .auraEyebrow()
+                    .foregroundStyle(.secondary)
                 Spacer()
                 if recap.listens > 0 {
                     Button("Copy Recap", systemImage: "doc.on.doc") {
@@ -371,33 +319,33 @@ private struct MenuBarWeeklyRecapView: View {
                         NSPasteboard.general.setString(recap.shareText, forType: .string)
                     }
                     .labelStyle(.iconOnly)
-                    .buttonStyle(.plain)
-                    .help("Copy Weekly Recap")
+                    .buttonStyle(.borderless)
+                    .help("Copy this week’s recap")
                 }
             }
             HStack(spacing: 0) {
                 recapMetric(recap.listens.formatted(), "listens")
-                Divider().frame(height: 30)
                 recapMetric(recap.minutes.formatted(), "minutes")
-                Divider().frame(height: 30)
                 recapMetric(recap.uniqueArtists.formatted(), "artists")
             }
             if let artist = recap.topArtist {
-                Text("Top artist · \(artist)")
+                Text("Most played: \(artist)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }
         .padding(BrandMetrics.cardPaddingCompact)
-        .auraCard()
+        .auraSurface(.inset, radius: BrandRadius.md)
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     private func recapMetric(_ value: String, _ label: String) -> some View {
-        VStack(spacing: BrandMetrics.titleDetailSpacing) {
-            Text(value).font(.headline.monospacedDigit())
-            Text(label).font(.caption2).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value).font(.system(size: 20, weight: .semibold, design: .rounded).monospacedDigit())
+            Text(label).font(.caption).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }

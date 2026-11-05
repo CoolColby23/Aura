@@ -9,6 +9,7 @@ struct QueueCorrection: Identifiable {
 
 struct QueueCorrectionView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appTheme) private var theme
     @State var draft: QueueCorrection
     let save: (QueueCorrection) -> Void
 
@@ -18,31 +19,47 @@ struct QueueCorrectionView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: BrandSpacing.md) {
-            Text("Correct Scrobble Metadata").font(.title2.bold())
-            Text(
-                "Review the rejected metadata before retrying. Aura keeps the original listen time and duplicate protection."
-            )
-            .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: BrandMetrics.cardContentSpacing) {
+                SymbolTile(symbol: "pencil", tint: theme.primaryColor, size: 40, filled: true)
+                VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
+                    Text("Correct and Retry")
+                        .font(BrandTypography.cardTitle)
+                    Text("Last.fm rejected this play. Fix the details below; Aura keeps the original listen time and duplicate protection.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding([.horizontal, .top], BrandMetrics.cardPaddingSpacious)
+
             Form {
                 TextField("Title", text: $draft.title)
                     .accessibilityIdentifier("queue.correction.title")
                 TextField("Artist", text: $draft.artist)
                     .accessibilityIdentifier("queue.correction.artist")
-                TextField("Album (optional)", text: $draft.album)
+                TextField("Album", text: $draft.album, prompt: Text("Optional"))
                     .accessibilityIdentifier("queue.correction.album")
             }
             .formStyle(.grouped)
+            .scrollDisabled(true)
+            .scrollContentBackground(.hidden)
+
             HStack {
                 Spacer()
                 Button("Cancel", role: .cancel) { dismiss() }
+                    .auraButton()
+                    .keyboardShortcut(.cancelAction)
                 Button("Save and Retry") { save(draft) }
+                    .auraButton(prominent: true)
                     .disabled(!canSave)
                     .keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier("queue.correction.save")
             }
+            .controlSize(.large)
+            .padding([.horizontal, .bottom], BrandMetrics.cardPaddingSpacious)
         }
-        .padding(BrandMetrics.cardPaddingSpacious)
         .frame(width: 480)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

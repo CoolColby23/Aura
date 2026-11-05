@@ -2,20 +2,21 @@ import CryptoKit
 import Foundation
 
 public struct SubmissionLease: Codable, Hashable, Sendable {
+    public let token: String?
     public let listenID: String
     public let ownerDeviceID: UUID
     public let acquiredAt: Date
     public let expiresAt: Date
     public let accountUsername: String
-    public init(listenID: String, ownerDeviceID: UUID, acquiredAt: Date = .now, expiresAt: Date, accountUsername: String) {
-        self.listenID = listenID; self.ownerDeviceID = ownerDeviceID
+    public init(listenID: String, ownerDeviceID: UUID, acquiredAt: Date = .now, expiresAt: Date, accountUsername: String, token: String? = UUID().uuidString) {
+        self.token = token; self.listenID = listenID; self.ownerDeviceID = ownerDeviceID
         self.acquiredAt = acquiredAt; self.expiresAt = expiresAt; self.accountUsername = accountUsername
     }
 }
 
 public enum SubmissionResult: Codable, Hashable, Sendable { case accepted(Date), rejected(String), deferred(String) }
 public protocol SubmissionCoordinator: Sendable {
-    func acquireLease(for listenID: String) async throws -> SubmissionLease
+    func acquireLease(for listen: CanonicalListen) async throws -> SubmissionLease
     func complete(_ lease: SubmissionLease, result: SubmissionResult) async throws
 }
 

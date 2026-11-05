@@ -41,6 +41,7 @@ if [[ ! -f "$PACKAGED_RESOURCE_BUNDLE/Contents/Info.plist" && ! -f "$PACKAGED_RE
   plutil -insert CFBundleInfoDictionaryVersion -string 6.0 "$PACKAGED_RESOURCE_BUNDLE/Info.plist"
 fi
 "$ROOT/scripts/generate-app-intents-metadata.sh" "$CONTENTS/Resources"
+"$ROOT/scripts/build-widget.sh" "$CONTENTS/PlugIns"
 
 plutil -create xml1 "$CONTENTS/Info.plist"
 plutil -insert CFBundleName -string Aura "$CONTENTS/Info.plist"
@@ -48,6 +49,7 @@ plutil -insert CFBundleDisplayName -string Aura "$CONTENTS/Info.plist"
 plutil -insert CFBundleIdentifier -string fm.aura.Aura "$CONTENTS/Info.plist"
 plutil -insert CFBundleExecutable -string Aura "$CONTENTS/Info.plist"
 plutil -insert CFBundlePackageType -string APPL "$CONTENTS/Info.plist"
+plutil -insert CFBundleURLTypes -json '[{"CFBundleURLName":"fm.aura.Aura","CFBundleURLSchemes":["aura"],"CFBundleTypeRole":"Viewer"}]' "$CONTENTS/Info.plist"
 plutil -insert CFBundleIconFile -string Aura "$CONTENTS/Info.plist"
 plutil -insert CFBundleShortVersionString -string "$VERSION" "$CONTENTS/Info.plist"
 plutil -insert CFBundleVersion -string "$BUILD_NUMBER" "$CONTENTS/Info.plist"
@@ -79,11 +81,18 @@ if [[ "${AURA_SKIP_SIGNING:-0}" != "1" ]]; then
     # Ad-hoc signatures cannot use an iCloud key-value-store entitlement.
     /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.ubiquity-kvstore-identifier" "$ENTITLEMENTS_FILE" 2>/dev/null || true
     codesign --force --deep --sign - "$CONTENTS/Frameworks/Sparkle.framework"
+    codesign --force --sign - --entitlements "$ROOT/WidgetExtension/AuraWidget.entitlements" "$CONTENTS/PlugIns/AuraWidget.appex"
     codesign --force --sign - --entitlements "$ENTITLEMENTS_FILE" "$APP"
     codesign --verify --deep --strict --verbose=2 "$APP"
     echo "Ad-hoc signed (no paid Apple Developer account required)"
   else
-    TEAM_IDENTIFIER="$(security find-certificate -c "$SIGNING_IDENTITY" -p 2>/dev/null | openssl x509 -noout -subject -nameopt RFC2253 2>/dev/null | sed -n 's/.*OU=\([^,]*\).*/\1/p' | head -n 1 || true)"
+    # Restricted app-group entitlements require matching explicit profiles.
+    # Never silently ship a signed host with an unusable widget.
+    : "${AURA_HOST_PROVISIONING_PROFILE:?Set matching host and widget provisioning profiles, or use AURA_SIGNING_IDENTITY=- for isolated package checks}"
+    : "${AURA_WIDGET_PROVISIONING_PROFILE:?Set matching widget provisioning profile}"
+    TEAM_IDENTIFIER="$(python3 "$ROOT/scripts/verify-widget-profiles.py" "$AURA_HOST_PROVISIONING_PROFILE" "$AURA_WIDGET_PROVISIONING_PROFILE" --identity "$SIGNING_IDENTITY")"
+    cp "$AURA_HOST_PROVISIONING_PROFILE" "$CONTENTS/embedded.provisionprofile"
+    cp "$AURA_WIDGET_PROVISIONING_PROFILE" "$CONTENTS/PlugIns/AuraWidget.appex/Contents/embedded.provisionprofile"
     if [[ -n "$TEAM_IDENTIFIER" && "${AURA_ENABLE_ICLOUD_SYNC:-0}" == "1" ]]; then
       /usr/libexec/PlistBuddy -c \
         "Set :com.apple.developer.ubiquity-kvstore-identifier $TEAM_IDENTIFIER.fm.aura.Aura" \
@@ -94,9 +103,14 @@ if [[ "${AURA_SKIP_SIGNING:-0}" != "1" ]]; then
     codesign --force --deep --options runtime --timestamp=none \
       --sign "$SIGNING_IDENTITY" "$CONTENTS/Frameworks/Sparkle.framework"
     codesign --force --options runtime --timestamp=none \
+      --entitlements "$ROOT/WidgetExtension/AuraWidget.entitlements" \
+      --sign "$SIGNING_IDENTITY" "$CONTENTS/PlugIns/AuraWidget.appex"
+    codesign --force --options runtime --timestamp=none \
       --entitlements "$ENTITLEMENTS_FILE" \
       --sign "$SIGNING_IDENTITY" "$APP"
     codesign --verify --deep --strict --verbose=2 "$APP"
+    ACTUAL_TEAM="$(codesign -dv "$APP" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+    python3 "$ROOT/scripts/verify-widget-profiles.py" "$AURA_HOST_PROVISIONING_PROFILE" "$AURA_WIDGET_PROVISIONING_PROFILE" --app "$APP" --team "$ACTUAL_TEAM"
     echo "Signed with $SIGNING_IDENTITY"
   fi
   rm -f "$ENTITLEMENTS_FILE"

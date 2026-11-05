@@ -95,16 +95,25 @@ final class ScrobbleQueue {
             sortBy: [SortDescriptor(\.startedAt)]
         )
         guard let records = try? store.context.fetch(descriptor) else { return }
-        for record in records {
+        // Re-fetch each row after suspension: users can remove or reschedule
+        // later rows while an earlier network request is in flight.
+        for id in records.map(\.id) {
+            guard !Task.isCancelled else { break }
+            guard let record = storedRecord(id),
+                (record.state == .pending || record.state == .retrying), record.nextAttemptAt <= clock.now
+            else { continue }
+            let duplicateKey = record.duplicateKey
             record.state = .retrying
             do {
                 try await client.scrobble(
                     title: record.title, artist: record.artist, album: record.album,
                     duration: record.duration, startedAt: record.startedAt)
+                onSubmitted?(duplicateKey)
+                guard let record = storedRecord(id) else { continue }
                 record.state = .submitted
                 record.lastError = nil
-                onSubmitted?(record.duplicateKey)
             } catch let error as LastFMError {
+                guard let record = storedRecord(id) else { continue }
                 record.attempts += 1
                 record.lastError = error.localizedDescription
                 switch error {
@@ -117,18 +126,23 @@ final class ScrobbleQueue {
                 case .retryLater(_, let minimumDelay):
                     // A daily limit or future timestamp is expected to clear. Don't
                     // announce it as stuck while the scheduled wait is still running.
-                    scheduleRetry(record, error: error, now: now, minimumDelay: minimumDelay, notifyIfStuck: false)
+                    scheduleRetry(record, error: error, now: clock.now, minimumDelay: minimumDelay, notifyIfStuck: false)
                 default:
                     let rateLimitDelay: TimeInterval = if case .api(let code, _) = error, code == 29 { 60 } else { 0 }
-                    scheduleRetry(record, error: error, now: now, minimumDelay: rateLimitDelay, notifyIfStuck: true)
+                    scheduleRetry(record, error: error, now: clock.now, minimumDelay: rateLimitDelay, notifyIfStuck: true)
                 }
             } catch {
+                guard let record = storedRecord(id) else { continue }
                 record.attempts += 1
                 record.lastError = Redactor.redact(error.localizedDescription)
-                scheduleRetry(record, error: error, now: now, minimumDelay: 0, notifyIfStuck: true)
+                scheduleRetry(record, error: error, now: clock.now, minimumDelay: 0, notifyIfStuck: true)
             }
             store.save()
         }
+    }
+
+    private func storedRecord(_ id: UUID) -> ScrobbleRecord? {
+        try? store.context.fetch(FetchDescriptor<ScrobbleRecord>(predicate: #Predicate { $0.id == id })).first
     }
 
     /// Last.fm API error codes that describe this account or request and will

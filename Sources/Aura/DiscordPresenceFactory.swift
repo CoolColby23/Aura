@@ -22,26 +22,40 @@ enum DiscordPresenceFactory {
             track: session.track,
             album: album
         )
-        let playbackState = snapshot.state == .paused ? "Paused" : "Playing"
+        let isPaused = snapshot.state == .paused
+        let playbackState = isPaused ? "Paused" : "Playing"
+        let rawPosition = snapshot.position.isFinite ? max(0, snapshot.position) : 0
+        let position = session.track.supportsFiniteProgress ? min(rawPosition, session.track.duration) : rawPosition
         let stateTemplate = snapshot.state == .paused ? preferences.discordPausedText : lineTwo
         let render: (String) -> String = { value in
             DiscordTemplate.render(
                 value, title: session.track.title, artist: session.track.artist,
                 album: album, platform: session.track.platform,
-                playbackState: playbackState, position: snapshot.position,
+                playbackState: playbackState, position: position,
                 duration: session.track.duration
             )
         }
-        let supportsTimer = snapshot.state == .playing && session.track.supportsFiniteProgress
+        let showsDuration = session.track.supportsFiniteProgress && preferences.discordTimerStyle != .hidden
+        let supportsTimer = snapshot.state == .playing && showsDuration
         let startedAt =
-            supportsTimer && preferences.discordTimerStyle == .elapsed
-            ? now.addingTimeInterval(-snapshot.position) : nil
+            supportsTimer && (preferences.discordTimerStyle == .elapsed || preferences.discordTimerStyle == .progress)
+            ? now.addingTimeInterval(-position) : nil
         let endsAt =
-            supportsTimer && preferences.discordTimerStyle == .remaining
-            ? now.addingTimeInterval(max(0, session.track.duration - snapshot.position)) : nil
+            supportsTimer && (preferences.discordTimerStyle == .remaining || preferences.discordTimerStyle == .progress)
+            ? now.addingTimeInterval(session.track.duration - position) : nil
+        var state = render(stateTemplate)
+        if showsDuration, !stateTemplate.contains("{duration}"), (isPaused || !lineOne.contains("{duration}")) {
+            let timing =
+                isPaused && !stateTemplate.contains("{position}")
+                ? render("{position} / {duration}") : render("{duration}")
+            state = [state, timing].filter { !$0.isEmpty }.joined(separator: " · ")
+        }
+        let smallImageTemplate =
+            isPaused && preferences.discordSmallImageText == "Playing on {platform}"
+            ? "Paused on {platform}" : preferences.discordSmallImageText
 
         return DiscordPresence(
-            title: render(lineOne), state: render(stateTemplate),
+            title: render(lineOne), state: state,
             startedAt: startedAt, endsAt: endsAt,
             appleMusicURL: preferences.showLink ? session.track.appleMusicURL : nil,
             artworkURL: artworkURL, buttonLabel: preferences.discordButtonLabel,
@@ -49,7 +63,7 @@ enum DiscordPresenceFactory {
             largeImage: preferences.discordLargeImage, activityType: preferences.discordActivityType,
             activityName: render(preferences.discordActivityName),
             largeImageText: render(preferences.discordLargeImageText),
-            smallImageText: render(preferences.discordSmallImageText)
+            smallImageText: render(smallImageTemplate)
         )
     }
 

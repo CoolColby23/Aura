@@ -25,3 +25,6 @@ PresenceFM-*.dmg
 PresenceFM-*.zip
 PresenceFM-*.sha256
 tmp/
+
+# Python script checks
+__pycache__/

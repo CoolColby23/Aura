@@ -49,8 +49,10 @@ actor CredentialStore {
     }
 
     func set(_ value: String, for credential: Credential) throws {
-        if value.isEmpty { values.removeValue(forKey: credential.rawValue) } else { values[credential.rawValue] = value }
-        try persist()
+        var updated = values
+        if value.isEmpty { updated.removeValue(forKey: credential.rawValue) } else { updated[credential.rawValue] = value }
+        try Self.write(updated, to: fileURL)
+        values = updated
     }
 
     func value(for credential: Credential) -> String? {
@@ -58,12 +60,10 @@ actor CredentialStore {
     }
 
     func remove(_ credential: Credential) throws {
-        values.removeValue(forKey: credential.rawValue)
-        try persist()
-    }
-
-    private func persist() throws {
-        try Self.write(values, to: fileURL)
+        var updated = values
+        updated.removeValue(forKey: credential.rawValue)
+        try Self.write(updated, to: fileURL)
+        values = updated
     }
 
     private static func write(_ values: [String: String], to fileURL: URL) throws {

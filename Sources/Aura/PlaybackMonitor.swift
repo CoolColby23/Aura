@@ -47,7 +47,7 @@ actor PlaybackMonitor: PlaybackProviding {
     }
 
     func snapshots() -> AsyncStream<PlaybackMonitorUpdate> {
-        AsyncStream { continuation in
+        AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             self.continuation = continuation
             monitoringTask?.cancel()
             monitoringTask = Task { await poll() }

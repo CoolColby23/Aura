@@ -100,6 +100,18 @@ describing the same component.
 - `screen-padding`: 32 — the outer padding of a scrolling detail screen
 - `content-width`: 1040 — the measure each macOS detail screen centers content in
 - `row-trailing-column`: 124 — the trailing status-and-timestamp column of a list row
+- `section-spacing`: 32 — between a page's header and each titled section
+- `row-divider-inset`: 60 — where a divider inside a row group starts, under the row's text
+- `stage-artwork`: 264 / 200 compact — the now-playing cover on the dashboard
+- `row-artwork`: 40 — the cover thumbnail at the front of a history row
+
+## Surface
+
+Content never uses Liquid Glass; glass belongs to the controls that float above it.
+
+- `surface-plain`: the canvas color one step lighter, a hairline edge, no glow — rows, charts, settings
+- `surface-raised`: plain plus `elevation-low` — the one surface on a page meant to draw the eye
+- `surface-inset`: theme primary at 4.5% light / 8% dark, no edge — nested blocks, callouts, menu-bar modules
 
 ## Type
 
@@ -107,10 +119,14 @@ SF Pro Rounded for chrome and headlines, SF Pro Text for long-form body, SF Mono
 technical values.
 
 - `type-hero`: 40 / bold / rounded
+- `type-page`: 30 / bold / rounded — the large title that opens each dashboard page
 - `type-title`: 24 / semibold / rounded
 - `type-heading`: 18 / semibold / rounded
+- `type-group`: 15 / semibold / rounded — the heading over a group of rows or a surface
+- `type-stat`: 30 / semibold / rounded, monospaced digits — headline numbers
 - `type-body`: 15 / regular / rounded
 - `type-caption`: 12 / medium / rounded
+- `type-eyebrow`: 11 / semibold / rounded, all caps, 1.05 tracking
 - `type-mono`: 12 / regular / monospaced
 
 ## Elevation

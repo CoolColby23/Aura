@@ -13,6 +13,7 @@ actor AppleMusicEvidenceSource: PlaybackEvidenceSource {
     private let player = MPMusicPlayerController.systemMusicPlayer
     private let deviceID: UUID
     private var lastItemID: String?
+    private var playStartedAt: Date?
     private var accumulated: TimeInterval = 0
     private var lastPosition: TimeInterval?
     private var lastObservedAt: Date?
@@ -26,7 +27,15 @@ actor AppleMusicEvidenceSource: PlaybackEvidenceSource {
         guard let item = player.nowPlayingItem else { reset(); return nil }
         let now = Date(); let position = max(0, player.currentPlaybackTime)
         let itemID = item.playbackStoreID.isEmpty ? String(item.persistentID) : item.playbackStoreID
-        if itemID != lastItemID { accumulated = 0; lastPosition = nil; lastObservedAt = nil; lastItemID = itemID }
+        let repeated =
+            itemID == lastItemID && player.playbackState == .playing
+            && item.playbackDuration > 30 && (lastPosition ?? 0) >= item.playbackDuration - 10
+            && position <= 10 && (lastPosition ?? 0) - position > item.playbackDuration / 2
+            && lastObservedAt.map { now.timeIntervalSince($0) >= 0 && now.timeIntervalSince($0) <= 15 } == true
+        if itemID != lastItemID || repeated {
+            accumulated = 0; lastPosition = nil; lastObservedAt = nil; lastItemID = itemID
+            playStartedAt = now.addingTimeInterval(-position)
+        }
         if player.playbackState == .playing, let priorPosition = lastPosition, let priorDate = lastObservedAt {
             let wall = max(0, now.timeIntervalSince(priorDate)); let delta = position - priorPosition
             if delta >= -2, delta <= wall + 4 { accumulated += min(wall, max(0, delta + 1)) }
@@ -36,7 +45,7 @@ actor AppleMusicEvidenceSource: PlaybackEvidenceSource {
         let artist = item.artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !title.isEmpty, !artist.isEmpty else { return nil }
         let duration = item.playbackDuration > 0 ? item.playbackDuration : nil
-        let startedAt = now.addingTimeInterval(-position)
+        let startedAt = playStartedAt ?? now.addingTimeInterval(-position)
         return PlaybackEvidence(
             deviceID: deviceID, platform: item.playbackStoreID.isEmpty ? .localMusic : .appleMusic,
             sourceTrackID: itemID, metadata: .init(title: title, artist: artist, album: item.albumTitle, duration: duration, startedAt: startedAt),
@@ -148,5 +157,5 @@ actor AppleMusicEvidenceSource: PlaybackEvidenceSource {
         NotificationCenter.default.addObserver(forName: .MPMusicPlayerControllerPlaybackStateDidChange, object: player, queue: .main) { _ in action() }
     }
 
-    private func reset() { lastItemID = nil; accumulated = 0; lastPosition = nil; lastObservedAt = nil }
+    private func reset() { playStartedAt = nil; lastItemID = nil; accumulated = 0; lastPosition = nil; lastObservedAt = nil }
 }

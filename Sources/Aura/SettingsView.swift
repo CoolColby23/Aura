@@ -1,9 +1,72 @@
 import SwiftUI
 
+enum SettingsCategory: String, CaseIterable, Identifiable {
+    case general = "General"
+    case appearance = "Appearance"
+    case players = "Players"
+    case discord = "Discord"
+    case lastFM = "Last.fm"
+    case data = "Data"
+    case advanced = "Advanced"
+
+    var id: Self { self }
+    var detail: String {
+        switch self {
+        case .general: "Startup, the sidebar, demo playback, and updates"
+        case .appearance: "How Aura looks in light and dark mode"
+        case .players: "Which music apps Aura watches, and in what order"
+        case .discord: "Rich Presence: what appears on your profile and how"
+        case .lastFM: "Scrobbling, your account, and what never gets sent"
+        case .data: "Local history, backups, and encrypted iCloud copies"
+        case .advanced: "Developer overrides and specialized options"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .appearance: "paintpalette"
+        case .players: "music.note.list"
+        case .discord: "bubble.left.and.bubble.right"
+        case .lastFM: "dot.radiowaves.left.and.right"
+        case .data: "externaldrive"
+        case .advanced: "wrench.and.screwdriver"
+        }
+    }
+}
+
+/// Settings inside the dashboard. The category comes from the main sidebar.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
+
+    var body: some View {
+        SettingsPane(category: model.selectedSettingsCategory, showsHeader: true)
+            .id(model.selectedSettingsCategory)
+    }
+}
+
+/// The standalone Settings window (⌘,). Native toolbar tabs over the same panes
+/// the dashboard shows, so both routes lead to identical controls.
+struct SettingsWindowView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        TabView(selection: $model.selectedSettingsCategory) {
+            ForEach(SettingsCategory.allCases) { category in
+                Tab(category.rawValue, systemImage: category.symbol, value: category) {
+                    SettingsPane(category: category, showsHeader: false)
+                }
+            }
+        }
+        .scenePadding(.minimum)
+    }
+}
+
+private struct SettingsPane: View {
+    let category: SettingsCategory
+    let showsHeader: Bool
+    @Environment(AppModel.self) private var model
     @Environment(UpdateManager.self) private var updateManager
-    @Environment(\.appTheme) private var theme
     @State private var backupDocument: AuraBackupDocument?
     @State private var showingBackupExporter = false
     @State private var showingBackupImporter = false
@@ -11,74 +74,53 @@ struct SettingsView: View {
     @State private var showingRestoreConfirmation = false
     @State private var showingDisconnectConfirmation = false
     @State private var dataStatus = ""
-    @State private var settingsSearchText = ""
 
     var body: some View {
-        @Bindable var preferences = model.preferences
-        @Bindable var model = model
-        HStack(spacing: 0) {
-            settingsSidebar(selection: $model.selectedSettingsCategory)
-            Divider()
-            // The grouped form centers its rows in a fixed measure, so the
-            // heading lives inside the form as the footer of a rowless section:
-            // it then shares the rows' leading edge instead of hugging the pane.
-            // (A header here would be merged with the next section's header.)
-            Form {
+        Form {
+            if showsHeader {
+                // The grouped form centers its rows in a fixed measure, so the
+                // heading lives inside the form as the footer of a rowless
+                // section: it then shares the rows' leading edge instead of
+                // hugging the pane. (A header would merge with the next section's.)
                 Section {
                 } footer: {
-                    VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                        Label(model.selectedSettingsCategory.rawValue, systemImage: model.selectedSettingsCategory.symbol)
-                            .font(BrandTypography.sectionTitle)
-                            .foregroundStyle(.primary)
-                        Text(model.selectedSettingsCategory.detail)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                    // Footers sit 8 points outside the section headers' text edge.
-                    .padding(.leading, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityAddTraits(.isHeader)
-                }
-                Group {
-                    switch model.selectedSettingsCategory {
-                    case .general:
-                        GeneralSettingsSections(model: model, updateManager: updateManager)
-                    case .appearance:
-                        Section {
-                            ThemePickerView().environment(model)
-                        }
-                    case .integrations:
-                        ConnectionOverviewSection(model: model)
-                        DiscordSettingsSection(model: model, preferences: preferences)
-                        LastFMSettingsSection(
-                            model: model,
-                            preferences: preferences,
-                            disconnect: { showingDisconnectConfirmation = true }
-                        )
-                    case .players:
-                        PlaybackProviderSettingsSection(model: model, preferences: preferences)
-                    case .data:
-                        DataSettingsSections(
-                            model: model,
-                            preferences: preferences,
-                            dataStatus: dataStatus,
-                            prepareBackup: prepareBackup,
-                            restoreBackup: { showingBackupImporter = true },
-                            confirmCloudRestore: {
-                                pendingRestore = $0
-                                showingRestoreConfirmation = true
-                            }
-                        )
-                    case .advanced:
-                        AdvancedSettingsSection(model: model)
-                    }
+                    SettingsHeader(category: category)
                 }
             }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
+            switch category {
+            case .general:
+                GeneralSettingsSections(model: model, updateManager: updateManager)
+            case .appearance:
+                AppearanceSettingsSections()
+            case .players:
+                PlaybackProviderSettingsSection(model: model, preferences: model.preferences)
+            case .discord:
+                DiscordSettingsSections(model: model, preferences: model.preferences)
+            case .lastFM:
+                LastFMSettingsSections(
+                    model: model,
+                    preferences: model.preferences,
+                    disconnect: { showingDisconnectConfirmation = true }
+                )
+            case .data:
+                DataSettingsSections(
+                    model: model,
+                    preferences: model.preferences,
+                    dataStatus: dataStatus,
+                    prepareBackup: prepareBackup,
+                    restoreBackup: { showingBackupImporter = true },
+                    confirmCloudRestore: {
+                        pendingRestore = $0
+                        showingRestoreConfirmation = true
+                    }
+                )
+            case .advanced:
+                AdvancedSettingsSection(model: model)
+            }
         }
-        .navigationTitle("Settings")
-        .auraPanelBackground()
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .environment(model)
         .fileExporter(
             isPresented: $showingBackupExporter,
             document: backupDocument,
@@ -112,63 +154,6 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Aura will stop scrobbling and remove the saved Last.fm authorization. Your Last.fm account and listening history are not deleted.")
-        }
-    }
-
-    private func settingsSidebar(selection: Binding<SettingsCategory>) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: BrandSpacing.xs) {
-                Text("SETTINGS")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, BrandSpacing.sm)
-                TextField("Search", text: $settingsSearchText)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Search settings categories")
-                ForEach(filteredSettingsCategories) { category in
-                    Button {
-                        selection.wrappedValue = category
-                    } label: {
-                        HStack(spacing: BrandSpacing.sm) {
-                            Image(systemName: category.symbol)
-                                .frame(width: 18)
-                            Text(category.rawValue)
-                            Spacer(minLength: 0)
-                        }
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(selection.wrappedValue == category ? theme.onPrimaryColor : Color.primary)
-                        .padding(.horizontal, BrandSpacing.sm)
-                        .padding(.vertical, BrandSpacing.sm)
-                        // Tint the selection with the active theme rather than the
-                        // system accent so it stays legible against `onPrimaryColor`.
-                        .background(
-                            selection.wrappedValue == category ? AnyShapeStyle(theme.primaryColor.gradient) : AnyShapeStyle(Color.clear),
-                            in: .rect(cornerRadius: BrandRadius.xs, style: .continuous)
-                        )
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("settings.category.\(category.id)")
-                }
-                if filteredSettingsCategories.isEmpty {
-                    Text("No settings match “\(settingsSearchText)”.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, BrandSpacing.sm)
-                        .padding(.top, BrandSpacing.xs)
-                }
-            }
-            .padding(BrandMetrics.cardPaddingCompact)
-        }
-        .frame(width: 170)
-        .background(.thinMaterial)
-    }
-
-    private var filteredSettingsCategories: [SettingsCategory] {
-        guard !settingsSearchText.isEmpty else { return SettingsCategory.allCases }
-        return SettingsCategory.allCases.filter {
-            $0.rawValue.localizedCaseInsensitiveContains(settingsSearchText)
-                || $0.detail.localizedCaseInsensitiveContains(settingsSearchText)
         }
     }
 
@@ -218,89 +203,67 @@ struct SettingsView: View {
     }
 }
 
-enum SettingsCategory: String, CaseIterable, Identifiable {
-    case general = "General"
-    case appearance = "Appearance"
-    case integrations = "Connections"
-    case players = "Players"
-    case data = "Data"
-    case advanced = "Advanced"
-
-    var id: Self { self }
-    var detail: String {
-        switch self {
-        case .general: "Startup, product tour, and software updates"
-        case .appearance: "Choose how Aura looks in light and dark mode"
-        case .integrations: "Connect Discord and Last.fm, then control what gets shared"
-        case .players: "Choose which music apps Aura watches and their priority"
-        case .data: "Manage local history and encrypted backups"
-        case .advanced: "Developer overrides and specialized options"
-        }
-    }
-    var symbol: String {
-        switch self {
-        case .general: "gear"
-        case .appearance: "paintpalette"
-        case .integrations: "antenna.radiowaves.left.and.right"
-        case .players: "music.note.list"
-        case .data: "externaldrive"
-        case .advanced: "slider.horizontal.3"
-        }
-    }
-}
-
-private struct ConnectionOverviewSection: View {
-    let model: AppModel
+private struct SettingsHeader: View {
+    let category: SettingsCategory
+    @Environment(\.appTheme) private var theme
 
     var body: some View {
-        Section("Connection Overview") {
-            SettingsConnectionRow(
-                name: model.playbackServiceName,
-                detail: "Detects the music playing on this Mac",
-                status: model.musicStatus
-            )
-            SettingsConnectionRow(
-                name: "Discord",
-                detail: model.preferences.discordEnabled ? "Shares your current activity" : "Activity sharing is turned off",
-                status: model.discordStatus
-            )
-            SettingsConnectionRow(
-                name: "Last.fm",
-                detail: model.preferences.lastFMEnabled ? "Keeps your listening history in sync" : "Scrobbling is turned off",
-                status: model.lastFMStatus
-            )
+        HStack(spacing: BrandMetrics.cardContentSpacing) {
+            SymbolTile(symbol: category.symbol, tint: theme.primaryColor, size: 44, filled: true)
+            VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
+                Text(category.rawValue)
+                    .font(BrandTypography.pageTitle)
+                    .foregroundStyle(.primary)
+                Text(category.detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
+        // Footers sit 8 points outside the section headers' text edge.
+        .padding(.leading, 8)
+        .padding(.bottom, BrandSpacing.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
-private struct SettingsConnectionRow: View {
-    let name: String
+/// A caption beneath a group of settings rows.
+private struct SettingsFootnote: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A row that names a connection and states its status in words and color.
+struct SettingsStatusRow: View {
+    let title: String
     let detail: String
     let status: ServiceStatus
 
     var body: some View {
         HStack(spacing: BrandMetrics.cardContentSpacing) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: BrandMetrics.statusDot, height: BrandMetrics.statusDot)
-                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: BrandMetrics.titleDetailSpacing) {
-                Text(name).font(.callout.weight(.semibold))
-                Text(detail).font(.caption).foregroundStyle(.secondary)
+                Text(title)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
-            Text(status.presentationLabel)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(statusColor)
+            StatusPill(title: status.presentationLabel, symbol: status.symbol, tint: status.tintColor)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name), \(status.presentationLabel). \(detail)")
-    }
-
-    private var statusColor: Color {
-        status.tintColor
     }
 }
+
+// MARK: - General
 
 private struct GeneralSettingsSections: View {
     let model: AppModel
@@ -309,31 +272,56 @@ private struct GeneralSettingsSections: View {
     var body: some View {
         @Bindable var preferences = model.preferences
         @Bindable var updateManager = updateManager
-        Section("General") {
-            Toggle("Launch Aura at login", isOn: $preferences.launchAtLogin)
+        Section("Startup") {
+            Toggle("Open Aura at login", isOn: $preferences.launchAtLogin)
                 .onChange(of: preferences.launchAtLogin) { _, value in model.setLaunchAtLogin(value) }
-            Button("Run Onboarding Again") { model.onboardingPresented = true }
+            LabeledContent("Setup guide") {
+                Button("Show Again") { model.onboardingPresented = true }
+            }
         }
-        Section("Demo Mode") {
+        Section {
+            ForEach(DashboardSection.allCases.filter(\.canBeHidden)) { section in
+                Toggle(isOn: sidebarBinding(section)) {
+                    Label(section.title, systemImage: section.symbol)
+                }
+            }
+        } header: {
+            Text("Sidebar")
+        } footer: {
+            SettingsFootnote("Now Playing and Settings always stay in the sidebar. Hidden pages remain reachable from Quick Open (⌘K).")
+        }
+        Section {
             Toggle("Simulate playback for a product tour", isOn: demoModeBinding)
-            Text(
+        } header: {
+            Text("Demo Mode")
+        } footer: {
+            SettingsFootnote(
                 "Runs short sample tracks through the real now-playing and local-history pipeline. Discord and Last.fm publishing are paused, and sample history is removed when the demo ends."
             )
-            .font(.caption).foregroundStyle(.secondary)
         }
-        Section("Updates") {
-            Toggle("Automatically check for updates", isOn: $updateManager.automaticallyChecksForUpdates)
-            Toggle("Automatically download updates", isOn: $updateManager.automaticallyDownloadsUpdates)
+        Section {
+            Toggle("Check for updates automatically", isOn: $updateManager.automaticallyChecksForUpdates)
+            Toggle("Download updates automatically", isOn: $updateManager.automaticallyDownloadsUpdates)
                 .disabled(!updateManager.automaticallyChecksForUpdates)
-            HStack {
+            LabeledContent("Version \(ReleaseConfiguration.version) (\(ReleaseConfiguration.build))") {
                 Button("Check for Updates…") { updateManager.checkForUpdates() }
-                Spacer()
-                Text("Version \(ReleaseConfiguration.version) (\(ReleaseConfiguration.build))")
-                    .foregroundStyle(.secondary)
             }
-            Text("Updates are downloaded from official Aura GitHub releases and verified before installation.")
-                .font(.caption).foregroundStyle(.secondary)
+        } header: {
+            Text("Updates")
+        } footer: {
+            SettingsFootnote("Updates come from official Aura GitHub releases and are verified before installation.")
         }
+    }
+
+    private func sidebarBinding(_ section: DashboardSection) -> Binding<Bool> {
+        Binding(
+            get: { model.preferences.isDashboardSectionVisible(section) },
+            set: { visible in
+                if visible != model.preferences.isDashboardSectionVisible(section) {
+                    model.preferences.toggleDashboardSection(section)
+                }
+            }
+        )
     }
 
     private var demoModeBinding: Binding<Bool> {
@@ -341,77 +329,103 @@ private struct GeneralSettingsSections: View {
     }
 }
 
-private struct LastFMSettingsSection: View {
+// MARK: - Last.fm
+
+private struct LastFMSettingsSections: View {
     let model: AppModel
     let preferences: Preferences
     let disconnect: () -> Void
-    @State private var showingCredentials = false
 
     var body: some View {
         @Bindable var model = model
         @Bindable var preferences = preferences
-        Section("Last.fm") {
-            Toggle("Enable scrobbling", isOn: $preferences.lastFMEnabled)
-                .onChange(of: preferences.lastFMEnabled) { _, value in model.setLastFMEnabled(value) }
-            Toggle("Send now playing", isOn: $preferences.sendNowPlaying)
+        Section("Account") {
+            SettingsStatusRow(
+                title: model.lastFMUsername.isEmpty ? "Last.fm" : model.lastFMUsername,
+                detail: model.lastFMUsername.isEmpty ? "Not connected yet" : "Connected account",
+                status: model.lastFMStatus
+            )
             if !model.lastFMUsername.isEmpty {
-                LabeledContent("Connected account", value: model.lastFMUsername)
-                Button("Disconnect Last.fm…", role: .destructive, action: disconnect)
-            } else {
-                VStack(alignment: .leading, spacing: BrandSpacing.xs) {
-                    Label("Connect Last.fm in three steps", systemImage: "list.number")
-                        .font(.callout.weight(.semibold))
-                    Text("1. Save your Last.fm API credentials.  2. Authorize Aura in your browser.  3. Return here and complete authorization.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                DisclosureGroup("API credentials", isExpanded: $showingCredentials) {
-                    SecureField("API Key", text: $model.credentialDraft.lastFMAPIKey)
-                    SecureField("Shared Secret", text: $model.credentialDraft.lastFMSecret)
-                    Button("Save Credentials") { Task { await model.saveCredentials() } }
-                        .auraButton(prominent: true)
-                    Text("Blank fields keep an existing saved value. Aura never displays your stored shared secret.")
-                        .font(.caption).foregroundStyle(.secondary)
+                LabeledContent("Authorization") {
+                    Button("Disconnect…", role: .destructive, action: disconnect)
                 }
             }
-            if model.lastFMUsername.isEmpty {
-                HStack {
-                    Button("Authorize in Browser") { Task { await model.beginLastFMAuthorization() } }
-                        .disabled(
-                            !model.hasStoredLastFMCredentials
-                                && (model.credentialDraft.lastFMAPIKey.isEmpty
-                                    || model.credentialDraft.lastFMSecret.isEmpty)
-                        )
-                    Button("Complete Authorization") { Task { await model.completeLastFMAuthorization() } }
-                }
-            }
-            DisclosureGroup("Scrobble Exclusions") {
-                TextField(
-                    "Artists (one per line or comma-separated)",
-                    text: $preferences.excludedScrobbleArtists,
-                    axis: .vertical
-                )
-                TextField(
-                    "Albums (one per line or comma-separated)",
-                    text: $preferences.excludedScrobbleAlbums,
-                    axis: .vertical
-                )
-                TextField(
-                    "Title contains (one term per line or comma-separated)",
-                    text: $preferences.excludedScrobbleTitleTerms,
-                    axis: .vertical
-                )
-                ForEach(PlaybackPlatform.allCases) { platform in
-                    Toggle("Exclude \(platform.rawValue)", isOn: exclusionBinding(for: platform))
-                }
-                Text("Exclusions affect Last.fm only. Listening History and Discord remain unchanged.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            .onChange(of: preferences.excludedScrobbleArtists) { _, _ in model.refreshScrobbleRules() }
-            .onChange(of: preferences.excludedScrobbleAlbums) { _, _ in model.refreshScrobbleRules() }
-            .onChange(of: preferences.excludedScrobbleTitleTerms) { _, _ in model.refreshScrobbleRules() }
-            .onChange(of: preferences.excludedScrobblePlatforms) { _, _ in model.refreshScrobbleRules() }
         }
+        if model.lastFMUsername.isEmpty {
+            Section {
+                SetupStep(number: 1, title: "Add your API credentials", done: model.hasStoredLastFMCredentials) {
+                    SecureField("API key", text: $model.credentialDraft.lastFMAPIKey, prompt: Text("API key"))
+                        .textFieldStyle(.roundedBorder)
+                        .labelsHidden()
+                    SecureField("Shared secret", text: $model.credentialDraft.lastFMSecret, prompt: Text("Shared secret"))
+                        .textFieldStyle(.roundedBorder)
+                        .labelsHidden()
+                    HStack {
+                        Button("Save Credentials") { Task { await model.saveCredentials() } }
+                            .disabled(model.credentialDraft.lastFMAPIKey.isEmpty && model.credentialDraft.lastFMSecret.isEmpty)
+                        Spacer()
+                    }
+                }
+                SetupStep(number: 2, title: "Authorize Aura in your browser", done: model.lastFMStatus == .connecting) {
+                    HStack {
+                        Button("Authorize in Browser") { Task { await model.beginLastFMAuthorization() } }
+                            .disabled(
+                                !model.hasStoredLastFMCredentials
+                                    && (model.credentialDraft.lastFMAPIKey.isEmpty
+                                        || model.credentialDraft.lastFMSecret.isEmpty)
+                            )
+                        Spacer()
+                    }
+                }
+                SetupStep(number: 3, title: "Come back and finish", done: false) {
+                    HStack {
+                        Button("Complete Authorization") { Task { await model.completeLastFMAuthorization() } }
+                            .auraButton(prominent: true)
+                        Spacer()
+                    }
+                }
+            } header: {
+                Text("Connect Last.fm")
+            } footer: {
+                SettingsFootnote("Blank fields keep an existing saved value. Aura never displays your stored shared secret.")
+            }
+        }
+        Section("Scrobbling") {
+            Toggle("Scrobble finished listens", isOn: $preferences.lastFMEnabled)
+                .onChange(of: preferences.lastFMEnabled) { _, value in model.setLastFMEnabled(value) }
+            Toggle("Show what’s playing on your profile", isOn: $preferences.sendNowPlaying)
+        }
+        Section {
+            TextField(
+                "Artists",
+                text: $preferences.excludedScrobbleArtists,
+                prompt: Text("One per line, or comma-separated"),
+                axis: .vertical
+            )
+            TextField(
+                "Albums",
+                text: $preferences.excludedScrobbleAlbums,
+                prompt: Text("One per line, or comma-separated"),
+                axis: .vertical
+            )
+            TextField(
+                "Titles containing",
+                text: $preferences.excludedScrobbleTitleTerms,
+                prompt: Text("One term per line, or comma-separated"),
+                axis: .vertical
+            )
+            ForEach(PlaybackPlatform.allCases) { platform in
+                Toggle("Skip everything from \(platform.rawValue)", isOn: exclusionBinding(for: platform))
+            }
+        } header: {
+            Text("Never Scrobble")
+        } footer: {
+            SettingsFootnote("Exclusions affect Last.fm only. Listening History and Discord are unchanged.")
+        }
+        .onChange(of: preferences.excludedScrobbleArtists) { _, _ in model.refreshScrobbleRules() }
+        .onChange(of: preferences.excludedScrobbleAlbums) { _, _ in model.refreshScrobbleRules() }
+        .onChange(of: preferences.excludedScrobbleTitleTerms) { _, _ in model.refreshScrobbleRules() }
+        .onChange(of: preferences.excludedScrobblePlatforms) { _, _ in model.refreshScrobbleRules() }
     }
 
     private func exclusionBinding(for platform: PlaybackPlatform) -> Binding<Bool> {
@@ -428,14 +442,52 @@ private struct LastFMSettingsSection: View {
     }
 }
 
+/// One numbered step in a connection flow. The number becomes a check once the
+/// step is done, so progress is legible without reading every row.
+private struct SetupStep<Content: View>: View {
+    let number: Int
+    let title: String
+    let done: Bool
+    @ViewBuilder var content: Content
+    @Environment(\.appTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+            HStack(spacing: BrandSpacing.sm) {
+                ZStack {
+                    Circle().fill(done ? AnyShapeStyle(BrandColors.success) : AnyShapeStyle(theme.primaryColor.opacity(0.14)))
+                    if done {
+                        Image(systemName: "checkmark").font(.caption2.weight(.bold)).foregroundStyle(.white)
+                    } else {
+                        Text("\(number)").font(.caption.weight(.bold).monospacedDigit()).foregroundStyle(theme.primaryColor)
+                    }
+                }
+                .frame(width: 22, height: 22)
+                .accessibilityHidden(true)
+                Text(title).font(.callout.weight(.semibold))
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Step \(number): \(title)\(done ? ", done" : "")")
+            VStack(alignment: .leading, spacing: BrandSpacing.sm) {
+                content
+            }
+            .padding(.leading, 30)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Players
+
 private struct PlaybackProviderSettingsSection: View {
     let model: AppModel
     let preferences: Preferences
 
     var body: some View {
-        Section("Music Players") {
+        Section {
             ForEach(Array(preferences.playbackProviderOrder.enumerated()), id: \.element) { index, provider in
                 PlaybackProviderRow(
+                    rank: index + 1,
                     provider: provider,
                     isEnabled: providerBinding(provider),
                     canMoveUp: index > 0,
@@ -444,21 +496,36 @@ private struct PlaybackProviderSettingsSection: View {
                     moveDown: { model.movePlaybackProvider(provider, by: 1) }
                 )
             }
-            if preferences.enabledPlaybackProviders.contains(.youtubeMusic) {
-                Button(model.ytmDesktopStatus == .connected ? "Disconnect YTMDesktop" : "Connect YTMDesktop") {
-                    Task {
-                        if model.ytmDesktopStatus == .connected {
-                            await model.disconnectYTMDesktop()
-                        } else {
-                            await model.connectYTMDesktop()
+        } header: {
+            Text("Music Players")
+        } footer: {
+            SettingsFootnote(
+                "Aura stays with whichever player is actively playing. When several start together, the higher one wins. TIDAL is best effort through macOS Now Playing."
+            )
+        }
+        if preferences.enabledPlaybackProviders.contains(.youtubeMusic) {
+            Section {
+                SettingsStatusRow(
+                    title: "YTMDesktop Companion Server",
+                    detail: "Required to read YouTube Music",
+                    status: model.ytmDesktopStatus
+                )
+                LabeledContent("Connection") {
+                    Button(model.ytmDesktopStatus == .connected ? "Disconnect" : "Connect") {
+                        Task {
+                            if model.ytmDesktopStatus == .connected {
+                                await model.disconnectYTMDesktop()
+                            } else {
+                                await model.connectYTMDesktop()
+                            }
                         }
                     }
                 }
+            } header: {
+                Text("YouTube Music")
+            } footer: {
+                SettingsFootnote("Turn on the Companion Server in YTMDesktop’s settings, then connect and approve Aura there.")
             }
-            Text(
-                "Aura keeps an actively playing provider selected. When multiple players start together, the order above wins. TIDAL is best effort through macOS Now Playing; YTMDesktop requires its Companion Server."
-            )
-            .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -471,32 +538,44 @@ private struct PlaybackProviderSettingsSection: View {
 }
 
 private struct PlaybackProviderRow: View {
+    let rank: Int
     let provider: PlaybackProviderID
     @Binding var isEnabled: Bool
     let canMoveUp: Bool
     let canMoveDown: Bool
     let moveUp: () -> Void
     let moveDown: () -> Void
+    @Environment(\.appTheme) private var theme
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack {
+        HStack(spacing: BrandMetrics.cardContentSpacing) {
+            Text("\(rank)")
+                .font(.callout.weight(.bold).monospacedDigit())
+                .foregroundStyle(isEnabled ? theme.readablePrimary(for: colorScheme) : Color.secondary)
+                .frame(width: 16)
+                .accessibilityHidden(true)
             Toggle(provider.displayName, isOn: $isEnabled)
             Spacer()
-            Button(action: moveUp) { Image(systemName: "chevron.up") }
-                .labelStyle(.iconOnly)
-                .disabled(!canMoveUp)
-                .accessibilityLabel(provider.moveEarlierAccessibilityLabel)
-                .accessibilityIdentifier("players.\(provider.rawValue).move-up")
-            Button(action: moveDown) { Image(systemName: "chevron.down") }
-                .labelStyle(.iconOnly)
-                .disabled(!canMoveDown)
-                .accessibilityLabel(provider.moveLaterAccessibilityLabel)
-                .accessibilityIdentifier("players.\(provider.rawValue).move-down")
+            ControlGroup {
+                Button(action: moveUp) { Image(systemName: "chevron.up") }
+                    .disabled(!canMoveUp)
+                    .accessibilityLabel(provider.moveEarlierAccessibilityLabel)
+                    .accessibilityIdentifier("players.\(provider.rawValue).move-up")
+                Button(action: moveDown) { Image(systemName: "chevron.down") }
+                    .disabled(!canMoveDown)
+                    .accessibilityLabel(provider.moveLaterAccessibilityLabel)
+                    .accessibilityIdentifier("players.\(provider.rawValue).move-down")
+            }
+            .controlSize(.small)
+            .fixedSize()
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("players.\(provider.rawValue)")
     }
 }
+
+// MARK: - Data
 
 private struct DataSettingsSections: View {
     let model: AppModel
@@ -511,45 +590,58 @@ private struct DataSettingsSections: View {
 
     var body: some View {
         @Bindable var preferences = preferences
-        Section("Listening History") {
-            Picker("Keep history", selection: $preferences.historyRetentionDays) {
+        Section {
+            Picker("Keep history for", selection: $preferences.historyRetentionDays) {
                 Text("30 days").tag(30)
                 Text("90 days").tag(90)
                 Text("1 year").tag(365)
                 Text("Forever").tag(0)
             }
             .onChange(of: preferences.historyRetentionDays) { _, _ in model.applyHistoryRetention() }
-            Text("History stays on this Mac and is never uploaded by Aura.")
-                .font(.caption).foregroundStyle(.secondary)
+        } header: {
+            Text("Listening History")
+        } footer: {
+            SettingsFootnote("History stays on this Mac and is never uploaded by Aura.")
         }
-        Section("Backup and Restore") {
-            HStack {
-                Button("Back Up Aura…", systemImage: "externaldrive.badge.plus", action: prepareBackup)
-                Button("Restore Backup…", systemImage: "arrow.counterclockwise", action: restoreBackup)
+        Section {
+            LabeledContent("Back up to a file") {
+                Button("Back Up…", action: prepareBackup)
+            }
+            LabeledContent("Restore from a file") {
+                Button("Restore…", action: restoreBackup)
             }
             if let date = preferences.lastBackupAt {
                 LabeledContent("Last backup", value: date.formatted(date: .abbreviated, time: .shortened))
             }
-            if !dataStatus.isEmpty { Text(dataStatus).foregroundStyle(.secondary) }
-            Text(
-                "Backups contain listening history, the scrobble queue, and non-secret settings. Credentials, authorization tokens, diagnostics, artwork, and machine-specific paths are excluded. Restore replaces current local data and disconnects Last.fm."
+            if !dataStatus.isEmpty {
+                Text(dataStatus).font(.callout).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Backup and Restore")
+        } footer: {
+            SettingsFootnote(
+                "Backups contain listening history, the scrobble queue, and non-secret settings. Credentials, authorization tokens, diagnostics, artwork, and machine-specific paths are left out. Restoring replaces current local data and disconnects Last.fm."
             )
-            .font(.caption).foregroundStyle(.secondary)
         }
-        Section("Encrypted iCloud Backup") {
-            SecureField("Backup passphrase", text: $cloudPassphrase)
+        Section {
+            SecureField("Passphrase", text: $cloudPassphrase, prompt: Text("At least 12 characters"))
                 .textContentType(.newPassword)
             HStack {
                 Button("Back Up to iCloud", systemImage: "icloud.and.arrow.up") { createCloudBackup() }
                 Button("Restore from iCloud", systemImage: "icloud.and.arrow.down") { restoreCloudBackup() }
+                Spacer()
+                if cloudOperationInProgress { ProgressView().controlSize(.small) }
             }
             .disabled(cloudOperationInProgress || cloudPassphrase.count < 12)
-            if cloudOperationInProgress { ProgressView().controlSize(.small) }
-            if !cloudStatus.isEmpty { Text(cloudStatus).foregroundStyle(.secondary) }
-            Text(
+            if !cloudStatus.isEmpty {
+                Text(cloudStatus).font(.callout).foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Encrypted iCloud Backup")
+        } footer: {
+            SettingsFootnote(
                 "Backups use authenticated AES-256-GCM encryption. Your passphrase is never stored and cannot be recovered. iCloud Drive requires an entitled Aura build."
             )
-            .font(.caption).foregroundStyle(.secondary)
         }
     }
 
@@ -597,20 +689,24 @@ private struct DataSettingsSections: View {
     }
 }
 
+// MARK: - Advanced
+
 private struct AdvancedSettingsSection: View {
     let model: AppModel
-    @State private var showingCredentials = false
 
     var body: some View {
         @Bindable var model = model
-        Section("Advanced") {
-            DisclosureGroup("Custom application credentials", isExpanded: $showingCredentials) {
-                SecureField("Discord Application ID", text: $model.credentialDraft.discordApplicationID)
-                Text("The override is stored in Aura's private local settings. Leave it empty to use the official Aura Discord application.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Button("Save Discord Override") { Task { await model.saveCredentials() } }
-                    .auraButton(prominent: true)
+        Section {
+            SecureField("Application ID", text: $model.credentialDraft.discordApplicationID, prompt: Text("Official Aura application"))
+            LabeledContent("Override") {
+                Button("Save Override") { Task { await model.saveCredentials() } }
             }
+        } header: {
+            Text("Custom Discord Application")
+        } footer: {
+            SettingsFootnote(
+                "The override is stored in Aura’s private local settings. Leave it empty to use the official Aura Discord application."
+            )
         }
     }
 }

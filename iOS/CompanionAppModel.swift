@@ -40,6 +40,7 @@ final class CompanionAppModel {
     /// Holds a play back after Last.fm refuses it. Capture polls about once a
     /// second, which would otherwise resubmit a daily-limit failure immediately.
     private var submissionNotBefore: [String: Date] = [:]
+    private var submissionsInFlight: Set<String> = []
 
     var history: [CanonicalListen] {
         snapshot.listens.filter { $0.state != .dismissed }.sorted {
@@ -271,7 +272,7 @@ final class CompanionAppModel {
         guard musicAuthorization == .authorized, let source, let evidence = await source.currentEvidence() else { nowPlaying = nil; return }
         nowPlaying = evidence
         do {
-            let listen = try await store.ingest(evidence); try await cloud?.sync(evidence: evidence, listen: listen)
+            let listen = try await store.ingest(evidence)
             try await store.log("capture", "Observed \(evidence.sourceTrackID ?? "metadata-only") as \(listen.state.rawValue).")
             if lastNowPlayingID != listen.id { lastNowPlayingID = listen.id; try? await lastFM?.updateNowPlaying(listen.canonicalMetadata) }
             if listen.state == .queued { await submit(listen) }
@@ -486,12 +487,24 @@ final class CompanionAppModel {
     private func submit(_ listen: CanonicalListen, refreshHistory: Bool = true) async {
         guard !snapshot.privateMode, let cloud, let lastFM else { return }
         if let notBefore = submissionNotBefore[listen.id], notBefore > .now { return }
+        let id = listen.id
+        guard submissionsInFlight.insert(id).inserted else { return }
+        defer { submissionsInFlight.remove(id) }
+        // Capture and queue drains can resume with stale values after any await.
+        let current = await store.current()
+        let matches = current.listens.filter { $0.id == id }
+        guard !current.privateMode, matches.count == 1, let listen = matches.first, listen.state == .queued else { return }
         do {
-            let lease = try await cloud.acquireLease(for: listen.id); try await store.setState(.submitting, for: listen.id)
+            let lease = try await cloud.acquireLease(for: listen); try await store.setState(.submitting, for: listen.id)
             do {
-                try await lastFM.scrobble(listen.canonicalMetadata); let date = Date()
+                try await lastFM.scrobble(listen.canonicalMetadata, expectedUsername: lease.accountUsername); let date = Date()
                 submissionNotBefore.removeValue(forKey: listen.id)
-                try await cloud.complete(lease, result: .accepted(date)); try await store.setState(.submitted, for: listen.id, submittedAt: date)
+                // Acceptance must never fall through the retry path if saving
+                // the cloud receipt fails. A stale cloud lease remains uncertain.
+                do {
+                    try await store.setState(.submitted, for: listen.id, submittedAt: date)
+                    try await cloud.complete(lease, result: .accepted(date))
+                } catch { show(error) }
                 if refreshHistory { await refreshLastFMHistory() }
             } catch let rejection as CompanionLastFMError where rejection.isTerminal {
                 // Retrying cannot change the outcome, so the play stops here with
@@ -503,10 +516,21 @@ final class CompanionAppModel {
             } catch {
                 let delay = (error as? CompanionLastFMError)?.retryDelay ?? 30
                 submissionNotBefore[listen.id] = Date().addingTimeInterval(delay)
-                try? await cloud.complete(lease, result: .deferred("Submission failed; retry is required.")); try await store.setState(.queued, for: listen.id)
+                // Only definite refusals and connection-establishment failures
+                // can release the lease; timeouts/lost responses remain uncertain.
+                let safeToRetry = CompanionSubmissionRetryPolicy.isSafeToRetry(error)
+                if safeToRetry {
+                    try? await cloud.complete(lease, result: .deferred("Last.fm deferred this submission."))
+                    try await store.setState(.queued, for: listen.id)
+                }
+                // Otherwise keep the durable local .submitting state too,
+                // including local-only builds, until the outcome is reconciled.
                 throw error
             }
             await reload()
+        } catch CloudCoordinationError.alreadySubmitted(let date) {
+            submissionNotBefore.removeValue(forKey: listen.id)
+            do { try await store.setState(.submitted, for: listen.id, submittedAt: date); await reload() } catch { show(error) }
         } catch { try? await store.log("submission", "Deferred \(listen.id): \(String(describing: type(of: error)))."); show(error) }
     }
 

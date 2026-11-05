@@ -30,6 +30,7 @@ grep -R -q "SetAuraPrivateModeIntent" "$INTENTS_METADATA" || fail "Private Mode 
 grep -R -q "OpenAuraDashboardIntent" "$INTENTS_METADATA" || fail "dashboard intent metadata is missing"
 
 [[ "$(plutil -extract CFBundleIdentifier raw "$PLIST")" == "fm.aura.Aura" ]] || fail "bundle identifier is wrong"
+[[ "$(plutil -extract CFBundleURLTypes.0.CFBundleURLSchemes.0 raw "$PLIST")" == "aura" ]] || fail "Aura URL scheme is missing"
 [[ "$(plutil -extract CFBundleShortVersionString raw "$PLIST")" == "$EXPECTED_VERSION" ]] || fail "version is wrong"
 [[ "$(plutil -extract CFBundleVersion raw "$PLIST")" == "$EXPECTED_BUILD" ]] || fail "build number is wrong"
 [[ "$(plutil -extract LSMinimumSystemVersion raw "$PLIST")" == "15.0" ]] || fail "minimum macOS is wrong"
@@ -48,5 +49,7 @@ otool -L "$APP/Contents/MacOS/Aura" | grep -q "@rpath/Sparkle.framework" || fail
 codesign --verify --deep --strict --verbose=2 "$APP"
 ENTITLEMENTS="$(codesign -d --entitlements :- "$APP" 2>/dev/null)"
 [[ "$ENTITLEMENTS" == *"com.apple.security.automation.apple-events"* ]] || fail "Apple Events entitlement is missing"
+
+python3 "$ROOT/scripts/verify-widget-package.py" "$APP"
 
 echo "Verified $APP ($EXPECTED_VERSION build $EXPECTED_BUILD)"

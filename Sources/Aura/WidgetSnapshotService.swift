@@ -19,17 +19,21 @@ enum WidgetSnapshotService {
     static let storageKey = "widgetSnapshot"
     private static var lastSignature = ""
 
-    static func publish(_ playback: PlaybackSnapshot, isPrivate: Bool) {
-        let snapshot = AuraWidgetSnapshot(
-            title: playback.track?.title ?? "Nothing Playing",
-            artist: playback.track?.artist ?? "Open Aura to start listening",
-            platform: playback.track?.platform.rawValue ?? "Aura",
-            state: playback.state.rawValue,
-            position: playback.position,
-            duration: playback.track?.duration ?? 0,
+    static func snapshot(_ playback: PlaybackSnapshot, isPrivate: Bool) -> AuraWidgetSnapshot {
+        AuraWidgetSnapshot(
+            title: isPrivate ? "Private Mode" : playback.track?.title ?? "Nothing Playing",
+            artist: isPrivate ? "" : playback.track?.artist ?? "Open Aura to start listening",
+            platform: isPrivate ? "Aura" : playback.track?.platform.rawValue ?? "Aura",
+            state: isPrivate ? "stopped" : playback.state.rawValue,
+            position: isPrivate ? 0 : playback.position,
+            duration: isPrivate ? 0 : playback.track?.duration ?? 0,
             observedAt: playback.observedAt,
             isPrivate: isPrivate
         )
+    }
+
+    static func publish(_ playback: PlaybackSnapshot, isPrivate: Bool) {
+        let snapshot = snapshot(playback, isPrivate: isPrivate)
         let signature = [
             playback.track?.identity.persistentID ?? "none",
             playback.state.rawValue,
@@ -37,11 +41,11 @@ enum WidgetSnapshotService {
             isPrivate ? "private" : "public",
         ].joined(separator: "|")
         guard signature != lastSignature else { return }
-        lastSignature = signature
         guard let defaults = UserDefaults(suiteName: suiteName),
             let data = try? JSONEncoder().encode(snapshot)
         else { return }
         defaults.set(data, forKey: storageKey)
+        lastSignature = signature
         WidgetCenter.shared.reloadTimelines(ofKind: kind)
     }
 }

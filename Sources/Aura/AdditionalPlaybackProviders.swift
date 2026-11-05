@@ -35,6 +35,7 @@ actor YTMDesktopPlaybackProvider: PlaybackProvider {
     private let client: YTMDesktopClient
     private let clock: any AppClock
     private var lastSnapshot: PlaybackSnapshot?
+    private var lastHealth: ProviderHealth = .inactive
     private var lastPoll = Date.distantPast
 
     init(credentials: CredentialStore, client: YTMDesktopClient = YTMDesktopClient(), clock: any AppClock = SystemAppClock()) {
@@ -44,22 +45,28 @@ actor YTMDesktopPlaybackProvider: PlaybackProvider {
     func snapshot() async -> ProviderSnapshot {
         guard let token = await credentials.value(for: .ytmDesktopToken) else {
             lastSnapshot = nil
+            lastHealth = .inactive
             return ProviderSnapshot(provider: id, playback: nil, health: .inactive, observedAt: clock.now)
         }
         if clock.now.timeIntervalSince(lastPoll) < IntegrationPolicy.youtubePollInterval {
-            return ProviderSnapshot(provider: id, playback: extrapolated(lastSnapshot), health: .available, observedAt: clock.now)
+            return ProviderSnapshot(provider: id, playback: extrapolated(lastSnapshot), health: lastHealth, observedAt: clock.now)
         }
         lastPoll = clock.now
         do {
             lastSnapshot = try await client.snapshot(token: token)
+            lastHealth = lastSnapshot == nil ? .inactive : .available
             return ProviderSnapshot(
                 provider: id, playback: extrapolated(lastSnapshot),
-                health: lastSnapshot == nil ? .inactive : .available, observedAt: clock.now
+                health: lastHealth, observedAt: clock.now
             )
         } catch {
+            // A disconnected companion cannot confirm that the old track is
+            // still playing. Keeping it would create phantom listening time.
+            lastSnapshot = nil
+            lastHealth = .unavailable(error.localizedDescription)
             return ProviderSnapshot(
-                provider: id, playback: extrapolated(lastSnapshot),
-                health: .unavailable(error.localizedDescription), observedAt: clock.now
+                provider: id, playback: nil,
+                health: lastHealth, observedAt: clock.now
             )
         }
     }

@@ -88,7 +88,7 @@ struct TrackMetadata: Sendable, Hashable, Codable {
 
     var isStream: Bool { source == .radioStream || source == .unsupportedStream }
     var isAppleMusicRadio: Bool { source == .radioStream && platform == .appleMusic }
-    var supportsFiniteProgress: Bool { duration > 0 && !isStream }
+    var supportsFiniteProgress: Bool { duration.isFinite && duration > 0 && (!isStream || isAppleMusicRadio) }
 }
 
 enum PlaybackState: String, Sendable, Codable { case stopped, paused, playing }
@@ -109,7 +109,7 @@ enum SessionOutcome: String, Sendable, Codable {
 
 struct PlaybackSession: Identifiable, Sendable, Codable, Hashable {
     let id: UUID
-    let track: TrackMetadata
+    var track: TrackMetadata
     let startedAt: Date
     var accumulatedPlayTime: TimeInterval
     var lastPosition: TimeInterval
@@ -117,6 +117,12 @@ struct PlaybackSession: Identifiable, Sendable, Codable, Hashable {
     var outcome: SessionOutcome
 
     var duplicateKey: String {
+        // A minute bucket collapses short repeat-one plays. Keep the full start
+        // instant; existing persisted keys are retained and checked separately.
+        "v2|\(track.platform.rawValue)|\(track.identity.persistentID)|\(track.artist.normalized)|\(track.title.normalized)|\(startedAt.timeIntervalSince1970)"
+    }
+
+    var legacyDuplicateKey: String {
         let minute = Int(startedAt.timeIntervalSince1970 / 60)
         return "\(track.identity.persistentID)|\(track.artist.normalized)|\(track.title.normalized)|\(minute)"
     }
@@ -226,6 +232,7 @@ enum DiscordActivityType: String, Sendable, CaseIterable, Identifiable {
 }
 
 enum DiscordTimerStyle: String, Sendable, CaseIterable, Identifiable {
+    case progress = "Song progress"
     case elapsed = "Elapsed time"
     case remaining = "Time remaining"
     case hidden = "Hidden"

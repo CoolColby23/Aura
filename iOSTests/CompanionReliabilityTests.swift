@@ -5,9 +5,174 @@ import XCTest
 @testable import AuraiOS
 
 final class CompanionReliabilityTests: XCTestCase {
+    func testRepeatedPlaysPersistWithDistinctIDsAndRetainLegacyID() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("ledger.json")
+        let store = CompanionStore(fileURL: url)
+        let start = Date(timeIntervalSince1970: 2041)
+        try await store.establishBaselineIfNeeded(.init(establishedAt: start.addingTimeInterval(-1)))
+        func evidence(_ offset: TimeInterval) -> PlaybackEvidence {
+            PlaybackEvidence(
+                deviceID: UUID(), sourceTrackID: "repeat",
+                metadata: .init(title: "Track", artist: "Artist", duration: 180, startedAt: start.addingTimeInterval(offset)), observedPlayTime: 120,
+                origin: .observed, confidence: .strong, capturedAt: start.addingTimeInterval(offset + 120))
+        }
+        let first = try await store.ingest(evidence(0))
+        try await store.setState(.submitted, for: first.id, submittedAt: start)
+        let second = try await store.ingest(evidence(99))
+        XCTAssertNotEqual(first.id, second.id)
+        let reloaded = CompanionStore(fileURL: url)
+        let state = await reloaded.current()
+        XCTAssertEqual(state.listens.count, 2)
+        XCTAssertEqual(state.listens.first?.state, .submitted)
+        XCTAssertEqual(state.listens.last?.state, .queued)
+        let again = try await reloaded.ingest(evidence(99))
+        XCTAssertEqual(again.id, second.id)
+        let final = await reloaded.current()
+        XCTAssertEqual(final.listens.count, 2)
+    }
+
+    func testLegacyDuplicateIDsCannotMarkTheWrongPlaySubmitted() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("ledger.json")
+        let start = Date(timeIntervalSince1970: 2041)
+        func legacy(_ offset: TimeInterval) -> CanonicalListen {
+            let item = PlaybackEvidence(
+                deviceID: UUID(), sourceTrackID: "repeat", metadata: .init(title: "Track", artist: "Artist", startedAt: start.addingTimeInterval(offset)),
+                observedPlayTime: 120, origin: .observed, confidence: .strong)
+            return CanonicalListen(id: CanonicalListenIdentity.legacy(for: item), evidence: [item], metadata: item.originalMetadata, state: .queued)
+        }
+        let one = legacy(0), two = legacy(99)
+        XCTAssertEqual(one.id, two.id)
+        var fixture = CompanionSnapshot.empty
+        fixture.listens = [one, two]
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(fixture).write(to: url)
+        let original = try Data(contentsOf: url)
+        let store = CompanionStore(fileURL: url)
+        // Compare against the decoded state: ISO-8601 persistence intentionally
+        // rounds subsecond evidence timestamps in the original fixture.
+        let loaded = await store.current()
+        do { try await store.setState(.submitted, for: one.id); XCTFail("Ambiguous legacy key accepted") } catch CompanionStoreError.ambiguousListenID {}
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        let evidence = two.evidence[0]
+        do { _ = try await store.ingest(evidence); XCTFail("Passive capture merged a duplicate key") } catch CompanionStoreError.ambiguousListenID {}
+        do { try await store.ingest([evidence]); XCTFail("Batch capture merged a duplicate key") } catch CompanionStoreError.ambiguousListenID {}
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        let preserved = await store.current()
+        XCTAssertEqual(preserved.listens, loaded.listens)
+        let unrelated = PlaybackEvidence(
+            deviceID: UUID(), sourceTrackID: "unrelated", metadata: .init(title: "Unrelated track", artist: "Artist", startedAt: start),
+            observedPlayTime: 120, origin: .observed, confidence: .strong)
+        do { try await store.ingest([unrelated, evidence]); XCTFail("Partly committed ambiguous batch") } catch CompanionStoreError.ambiguousListenID {}
+        let rolledBack = await store.current()
+        XCTAssertEqual(rolledBack.listens, loaded.listens)
+        XCTAssertEqual(try Data(contentsOf: url), original)
+        do { try await store.correct(id: one.id, title: "Wrong", artist: "Wrong", album: nil); XCTFail("Corrected an ambiguous key") } catch CompanionStoreError
+            .ambiguousListenID
+        {}
+        _ = try await store.ingest(unrelated)
+        let withUnrelated = await store.current()
+        XCTAssertEqual(Array(withUnrelated.listens.prefix(2)), loaded.listens)
+        XCTAssertEqual(withUnrelated.listens.count, 3)
+    }
+
     override func setUp() {
         super.setUp()
         CompanionURLProtocol.reset()
+    }
+
+    func testSubmissionRetryPolicyKeepsUnknownOutcomesFenced() {
+        for code in [URLError.Code.cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .notConnectedToInternet] {
+            XCTAssertTrue(CompanionSubmissionRetryPolicy.isSafeToRetry(URLError(code)))
+        }
+        for code in [URLError.Code.timedOut, .networkConnectionLost, .cancelled, .badServerResponse, .secureConnectionFailed] {
+            XCTAssertFalse(CompanionSubmissionRetryPolicy.isSafeToRetry(URLError(code)))
+        }
+        XCTAssertTrue(CompanionSubmissionRetryPolicy.isSafeToRetry(CancellationError()))
+        XCTAssertTrue(CompanionSubmissionRetryPolicy.isSafeToRetry(CompanionLastFMError.retryLater("Busy", after: 30)))
+        XCTAssertFalse(CompanionSubmissionRetryPolicy.isSafeToRetry(CompanionLastFMError.invalidResponse))
+    }
+
+    func testScrobbleTaskDoesNotFollowRedirectToAnotherConnection() {
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        let url = URL(string: "https://ws.audioscrobbler.com/2.0/")!
+        let task = session.dataTask(with: url)  // Never resumed: no network I/O.
+        let completion = expectation(description: "Redirect refused")
+        CompanionLastFMTaskDelegate().urlSession(
+            session, task: task,
+            willPerformHTTPRedirection: HTTPURLResponse(url: url, statusCode: 307, httpVersion: nil, headerFields: nil)!,
+            newRequest: URLRequest(url: URL(string: "https://unreachable.invalid/")!)
+        ) { request in
+            XCTAssertNil(request)
+            completion.fulfill()
+        }
+        wait(for: [completion], timeout: 1)
+    }
+
+    func testConnectionFailureReachesRetryPolicyWithoutBecomingAcceptance() async throws {
+        CompanionURLProtocol.handler = { _ in throw URLError(.cannotFindHost) }
+        let keychain = CompanionKeychain(inMemoryValues: [:])
+        try await keychain.setSession("session", username: "listener")
+        do {
+            try await makeClient(keychain: keychain).scrobble(.init(title: "Track", artist: "Artist", startedAt: .now), expectedUsername: "listener")
+            XCTFail("Failed connection was accepted")
+        } catch {
+            XCTAssertTrue(CompanionSubmissionRetryPolicy.isSafeToRetry(error))
+        }
+        XCTAssertEqual(CompanionURLProtocol.requestCount, 1)
+    }
+
+    func testRateLimitIsDefiniteRetryWithFiniteDelay() async throws {
+        for header in ["45", "nan", "inf", "-10"] {
+            CompanionURLProtocol.handler = { request in
+                (HTTPURLResponse(url: request.url!, statusCode: 429, httpVersion: nil, headerFields: ["Retry-After": header])!, Data())
+            }
+            do { _ = try await makeClient().recentTracks(username: "listener"); XCTFail("Rate limit ignored") } catch CompanionLastFMError.retryLater(
+                _, let delay)
+            {
+                XCTAssertTrue(delay.isFinite)
+                XCTAssertGreaterThanOrEqual(delay, 5)
+                XCTAssertLessThanOrEqual(delay, 300)
+                if header == "45" { XCTAssertEqual(delay, 45) }
+            }
+        }
+    }
+
+    func testAccountSwitchCannotUseNewSessionForOldLease() async throws {
+        let keychain = CompanionKeychain(inMemoryValues: [:])
+        do {
+            try await keychain.setSession("session-a", username: "ListenerA")
+            let client = makeClient(keychain: keychain)
+            try await keychain.setSession("session-b", username: "ListenerB")
+            do {
+                try await client.scrobble(.init(title: "Track", artist: "Artist", startedAt: .now), expectedUsername: "listenera")
+                XCTFail("Old lease used the new account")
+            } catch CompanionLastFMError.accountChanged {}
+            XCTAssertEqual(CompanionURLProtocol.requestCount, 0)
+            let session = await keychain.session(for: " LISTENERB ")
+            XCTAssertEqual(session, "session-b")
+            try await keychain.setSession(nil, username: nil)
+            let cleared = await keychain.session(for: "listenerb")
+            XCTAssertNil(cleared)
+        } catch {
+            try? await keychain.setSession(nil, username: nil)
+            throw error
+        }
+    }
+
+    func testLeaseAccountMismatchDoesNotSendRequest() async throws {
+        // Empty expected identity cannot match an authorized account. This test
+        // never writes credentials or touches a real Last.fm account.
+        do {
+            try await makeClient().scrobble(.init(title: "Track", artist: "Artist", startedAt: .now), expectedUsername: "")
+            XCTFail("Unbound account submitted")
+        } catch CompanionLastFMError.accountChanged {}
+        XCTAssertEqual(CompanionURLProtocol.requestCount, 0)
     }
 
     func testRecentTracksBoundsPaginationAndDeduplicatesResults() async throws {
@@ -124,12 +289,12 @@ final class CompanionReliabilityTests: XCTestCase {
         XCTAssertEqual(dates, [newest, newest.addingTimeInterval(-180), newest.addingTimeInterval(-360)])
     }
 
-    private func makeClient() -> CompanionLastFMClient {
+    private func makeClient(keychain: CompanionKeychain = CompanionKeychain(inMemoryValues: [:])) -> CompanionLastFMClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [CompanionURLProtocol.self]
         return CompanionLastFMClient(
             credentials: .init(apiKey: "api-key", sharedSecret: "secret"),
-            keychain: CompanionKeychain(),
+            keychain: keychain,
             session: URLSession(configuration: configuration)
         )
     }

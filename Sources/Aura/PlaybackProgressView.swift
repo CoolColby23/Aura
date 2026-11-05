@@ -12,7 +12,7 @@ struct PlaybackProgress: View {
                 at: context.date,
                 duration: duration
             )
-            PlaybackProgressContent(position: position, duration: duration)
+            PlaybackProgressContent(position: position, duration: duration, isPlaying: snapshot.state == .playing)
         }
     }
 }
@@ -20,19 +20,11 @@ struct PlaybackProgress: View {
 private struct PlaybackProgressContent: View {
     let position: TimeInterval
     let duration: TimeInterval
-    @Environment(\.appTheme) private var theme
+    var isPlaying = true
 
     var body: some View {
         VStack(spacing: BrandSpacing.xs) {
-            ProgressView(value: min(max(position, 0), duration), total: max(duration, 1))
-                .tint(theme.accentGradient)
-                .accessibilityLabel("Playback progress")
-                .accessibilityValue(
-                    PlaybackProgressPresentation.accessibilityValue(
-                        position: position,
-                        duration: duration
-                    )
-                )
+            AuraProgressBar(value: min(max(position, 0), duration), total: max(duration, 1), live: isPlaying)
             HStack {
                 Text(position.formattedDuration)
                 Spacer()
@@ -42,6 +34,16 @@ private struct PlaybackProgressContent: View {
             .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Playback progress")
+        .accessibilityValue(
+            Text(
+                PlaybackProgressPresentation.accessibilityValue(
+                    position: position,
+                    duration: duration
+                )
+            )
+        )
     }
 }
 

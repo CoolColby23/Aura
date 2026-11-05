@@ -1,10 +1,8 @@
 #!/bin/zsh
 set -euo pipefail
 
-# The widget extension is not embedded by the SwiftPM package or the Xcode
-# project — see Documentation/WIDGET.md for the signing prerequisites — so
-# nothing else in CI compiles it. Type-check it directly to keep the source
-# honest while it waits for an App ID.
+# Fast source check; the package job separately builds and verifies the real
+# extension product, embedded signature, sandbox and shared app group.
 ROOT="${0:A:h:h}"
 
 swiftc -typecheck -parse-as-library \

@@ -21,9 +21,14 @@ struct DiagnosticEntry: Identifiable, Codable, Sendable {
 }
 
 enum CompanionStoreError: LocalizedError {
-    case invalidScrobbleMetadata
+    case invalidScrobbleMetadata, ambiguousListenID
 
-    var errorDescription: String? { "A title and artist are required before retrying this scrobble." }
+    var errorDescription: String? {
+        switch self {
+        case .invalidScrobbleMetadata: "A title and artist are required before retrying this scrobble."
+        case .ambiguousListenID: "Legacy listens share an ID. Back up the ledger and follow the compatibility recovery runbook before retrying these plays."
+        }
+    }
 }
 
 actor CompanionStore {
@@ -75,18 +80,42 @@ actor CompanionStore {
     }
 
     @discardableResult func ingest(_ evidence: PlaybackEvidence) throws -> CanonicalListen {
-        let listen = ingestWithoutPersisting(evidence)
-        try persist()
-        return listen
+        let original = snapshot
+        do {
+            let listen = try ingestWithoutPersisting(evidence)
+            try persist()
+            return listen
+        } catch {
+            snapshot = original
+            throw error
+        }
     }
 
     func ingest(_ evidence: [PlaybackEvidence]) throws {
         guard !evidence.isEmpty else { return }
-        for item in evidence { _ = ingestWithoutPersisting(item) }
-        try persist()
+        let original = snapshot
+        do {
+            for item in evidence { _ = try ingestWithoutPersisting(item) }
+            try persist()
+        } catch {
+            // Roll back the whole batch, including evidence staged before a
+            // collision, so reconciliation cannot partly advance its ledger.
+            snapshot = original
+            throw error
+        }
     }
 
-    private func ingestWithoutPersisting(_ evidence: PlaybackEvidence) -> CanonicalListen {
+    private func ingestWithoutPersisting(_ evidence: PlaybackEvidence) throws -> CanonicalListen {
+        let duplicateIDs = Set(Dictionary(grouping: snapshot.listens, by: \.id).filter { $0.value.count > 1 }.keys)
+        let metadata = evidence.originalMetadata
+        guard
+            !snapshot.listens.contains(where: {
+                duplicateIDs.contains($0.id)
+                    && $0.canonicalMetadata.title.presenceNormalized == metadata.title.presenceNormalized
+                    && $0.canonicalMetadata.artist.presenceNormalized == metadata.artist.presenceNormalized
+                    && SamePlayWindow.contains($0.canonicalMetadata, metadata)
+            })
+        else { throw CompanionStoreError.ambiguousListenID }
         let merger = DefaultEvidenceMerger(); let decision = merger.merge(evidence, into: snapshot.listens)
         let baseline = snapshot.baseline ?? CaptureBaseline(establishedAt: evidence.capturedAt)
         let eligibility = ScrobbleEligibilityPolicy.evaluate(evidence, baseline: baseline)
@@ -105,9 +134,11 @@ actor CompanionStore {
             snapshot.listens[index] = merged; return merged
         case .review(_, let mergeReason):
             let id = CanonicalListenIdentity.make(for: evidence)
+            guard !snapshot.listens.contains(where: { $0.id == id }) else { throw CompanionStoreError.ambiguousListenID }
             let listen = CanonicalListen(id: id, evidence: [evidence], metadata: evidence.originalMetadata, state: .review, reviewReason: mergeReason)
             snapshot.listens.append(listen); return listen
         case .newListen(let id):
+            guard !snapshot.listens.contains(where: { $0.id == id }) else { throw CompanionStoreError.ambiguousListenID }
             let listen = CanonicalListen(id: id, evidence: [evidence], metadata: evidence.originalMetadata, state: state, reviewReason: reason)
             snapshot.listens.append(listen); return listen
         }
@@ -115,6 +146,7 @@ actor CompanionStore {
 
     func setCursor(_ cursor: ReconciliationCursor) throws { snapshot.cursor = cursor; try persist() }
     func setState(_ state: ListenState, for id: String, submittedAt: Date? = nil, failureReason: String? = nil) throws {
+        guard snapshot.listens.filter({ $0.id == id }).count <= 1 else { throw CompanionStoreError.ambiguousListenID }
         guard let index = snapshot.listens.firstIndex(where: { $0.id == id }) else { return }
         snapshot.listens[index].state = state; snapshot.listens[index].submittedAt = submittedAt
         snapshot.listens[index].failureReason = failureReason
@@ -128,6 +160,7 @@ actor CompanionStore {
         try persist()
     }
     func correct(id: String, title: String, artist: String, album: String?) throws {
+        guard snapshot.listens.filter({ $0.id == id }).count <= 1 else { throw CompanionStoreError.ambiguousListenID }
         guard let index = snapshot.listens.firstIndex(where: { $0.id == id }) else { return }
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
