@@ -50,4 +50,6 @@ codesign --verify --deep --strict --verbose=2 "$APP"
 ENTITLEMENTS="$(codesign -d --entitlements :- "$APP" 2>/dev/null)"
 [[ "$ENTITLEMENTS" == *"com.apple.security.automation.apple-events"* ]] || fail "Apple Events entitlement is missing"
 
+python3 "$ROOT/scripts/verify-widget-package.py" "$APP"
+
 echo "Verified $APP ($EXPECTED_VERSION build $EXPECTED_BUILD)"
